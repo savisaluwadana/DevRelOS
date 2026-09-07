@@ -194,6 +194,9 @@ func (a *api) canManageUserKeys(w http.ResponseWriter, r *http.Request, userID s
 	if act.Kind == "operator" || (act.Kind == "user" && act.UserID == userID) { return true }
 	workspaceID, err := a.requestWorkspaceID(r)
 	if err != nil || !a.requireWorkspaceRole(w, r, workspaceID, "admin") { return false }
+	belongs, err := a.store.UserInWorkspace(r.Context(), userID, workspaceID)
+	if err != nil { writeError(w, err); return false }
+	if !belongs { writeForbidden(w); return false }
 	return true
 }
 
