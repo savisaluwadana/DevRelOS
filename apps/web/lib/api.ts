@@ -83,6 +83,8 @@ export type Connector = {
   enabled: boolean;
   config: Record<string, unknown>;
   policy: Record<string, unknown>;
+  scheduleMinutes?: number;
+  nextRunAt?: string;
   createdAt: string;
   updatedAt: string;
 };

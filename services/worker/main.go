@@ -18,7 +18,9 @@ import (
 	signaldomain "github.com/savisaluwadana/DevRelOS/internal/domain/signals"
 	"github.com/savisaluwadana/DevRelOS/internal/providers/bluesky"
 	developersevents "github.com/savisaluwadana/DevRelOS/internal/providers/developersevents"
+	"github.com/savisaluwadana/DevRelOS/internal/providers/githubdiscussions"
 	"github.com/savisaluwadana/DevRelOS/internal/providers/githubissues"
+	"github.com/savisaluwadana/DevRelOS/internal/providers/githubreleases"
 	"github.com/savisaluwadana/DevRelOS/internal/providers/hackernews"
 	"github.com/savisaluwadana/DevRelOS/internal/providers/ocg"
 	"github.com/savisaluwadana/DevRelOS/internal/providers/rss"
@@ -40,6 +42,8 @@ func main() {
 		bluesky.New(),
 		ocg.New(),
 		githubissues.New(),
+		githubreleases.New(),
+		githubdiscussions.New(),
 		hackernews.New(),
 		rss.New(),
 	)
@@ -52,6 +56,7 @@ func main() {
 		}
 	}
 
+	queueScheduledRuns(ctx, store)
 	processAvailable(ctx, store, registry)
 	ticker := time.NewTicker(pollEvery)
 	defer ticker.Stop()
@@ -62,8 +67,20 @@ func main() {
 			log.Print("DevRelOS worker stopped")
 			return
 		case <-ticker.C:
+			queueScheduledRuns(ctx, store)
 			processAvailable(ctx, store, registry)
 		}
+	}
+}
+
+func queueScheduledRuns(ctx context.Context, store *storage.Store) {
+	queued, err := store.QueueDueConnectorRuns(ctx, time.Now().UTC())
+	if err != nil {
+		log.Printf("connector schedule error: %v", err)
+		return
+	}
+	if queued > 0 {
+		log.Printf("queued %d scheduled connector run(s)", queued)
 	}
 }
 
