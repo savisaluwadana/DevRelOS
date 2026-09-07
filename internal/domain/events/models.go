@@ -93,11 +93,11 @@ type Community struct {
 }
 
 type Dashboard struct {
-	OpenCFPs             int          `json:"openCfps"`
-	ClosingSoon          int          `json:"closingSoon"`
-	AcceptedTalks        int          `json:"acceptedTalks"`
-	SubmissionsInFlight  int          `json:"submissionsInFlight"`
-	HighFitCFPs          []CFP        `json:"highFitCfps"`
-	UpcomingEvents       []Event      `json:"upcomingEvents"`
+	OpenCFPs               int         `json:"openCfps"`
+	ClosingSoon            int         `json:"closingSoon"`
+	AcceptedTalks          int         `json:"acceptedTalks"`
+	SubmissionsInFlight    int         `json:"submissionsInFlight"`
+	HighFitCFPs            []CFP       `json:"highFitCfps"`
+	UpcomingEvents         []Event     `json:"upcomingEvents"`
 	CommunityOpportunities []Community `json:"communityOpportunities"`
 }
