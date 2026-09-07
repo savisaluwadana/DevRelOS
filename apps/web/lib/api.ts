@@ -105,6 +105,44 @@ export type ConnectorRun = {
   createdAt: string;
 };
 
+export type Signal = {
+  id: string;
+  projectId: string;
+  sourceRecordId: string;
+  provider: string;
+  externalId: string;
+  canonicalUrl: string;
+  authorHandle: string;
+  authorName: string;
+  title: string;
+  body: string;
+  occurredAt?: string;
+  topics: string[];
+  engagementScore: number;
+  relevanceScore?: number;
+  status: "new" | "reviewed" | "ignored" | "converted";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PainPoint = {
+  id: string;
+  projectId: string;
+  key: string;
+  title: string;
+  summary: string;
+  persona: string;
+  severity: number;
+  trendScore: number;
+  evidenceCount: number;
+  topics: string[];
+  status: string;
+  firstSeenAt?: string;
+  lastSeenAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Dashboard = {
   openCfps: number;
   closingSoon: number;
@@ -169,6 +207,19 @@ export async function getIntegrationData() {
   };
 }
 
+export async function getSignalRadarData() {
+  const [signals, painPoints] = await Promise.all([
+    getJSON<Signal[]>("/api/v1/signals?limit=200"),
+    getJSON<PainPoint[]>("/api/v1/pain-points?limit=100")
+  ]);
+
+  return {
+    signals: signals ?? [],
+    painPoints: painPoints ?? [],
+    connected: signals !== null && painPoints !== null
+  };
+}
+
 export function formatDate(value?: string): string {
   if (!value) return "TBD";
   const date = new Date(value);
@@ -177,6 +228,18 @@ export function formatDate(value?: string): string {
     month: "short",
     day: "numeric",
     year: "numeric"
+  }).format(date);
+}
+
+export function formatDateTime(value?: string): string {
+  if (!value) return "TBD";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "TBD";
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
   }).format(date);
 }
 

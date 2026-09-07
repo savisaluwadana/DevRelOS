@@ -1,0 +1,52 @@
+.signals-page { display: flex; flex-direction: column; gap: 10px; }
+.panel-note { font-size: 10px; }
+.signal-capture-panel { overflow: visible; }
+.signal-capture-body { padding: 16px; border-top: 1px solid var(--line); }
+.signal-capture-form { display: flex; flex-direction: column; gap: 12px; }
+.signal-capture-form label { display: flex; flex-direction: column; gap: 6px; color: #8d97a5; font-size: 10px; font-weight: 650; }
+.signal-capture-form input,
+.signal-capture-form select,
+.signal-capture-form textarea,
+.status-select { width: 100%; border: 1px solid #2a313b; border-radius: 8px; background: #0e1217; color: #edf1f6; padding: 10px 11px; outline: none; }
+.signal-capture-form textarea { resize: vertical; }
+.signal-capture-form input:focus,
+.signal-capture-form select:focus,
+.signal-capture-form textarea:focus,
+.status-select:focus { border-color: #3f6d5a; box-shadow: 0 0 0 2px #7cf7c411; }
+.signal-form-footer { display: flex; align-items: center; gap: 10px; }
+.inline-action { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; padding-top: 8px; }
+.action-note { color: var(--accent); font-size: 10px; }
+.pain-point-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.pain-card { border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 16px; min-width: 0; }
+.pain-card-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.pain-card h3 { margin: 12px 0 8px; font-size: 16px; letter-spacing: -0.02em; }
+.pain-card p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.pain-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #20262f; color: #737e8d; font-size: 9px; }
+.trend-up { color: var(--accent); }
+.trend-down { color: var(--danger); }
+.danger-score { color: #ffc0ae; background: #251712; border-color: #5a3428; }
+.pain-empty { grid-column: 1 / -1; padding: 24px; }
+.pain-empty h2 { margin: 8px 0; }
+.pain-empty p { margin: 0; color: var(--muted); max-width: 680px; line-height: 1.6; font-size: 12px; }
+.evidence-control { margin-top: 12px; }
+.evidence-button { width: 100%; text-align: left; padding: 8px 0 0; }
+.evidence-list { display: flex; flex-direction: column; gap: 6px; margin-top: 9px; }
+.evidence-list > span { color: var(--muted); font-size: 10px; }
+.evidence-item { display: block; border: 1px solid #252c35; background: #11161c; border-radius: 8px; padding: 9px; }
+.evidence-item strong { display: block; font-size: 10px; line-height: 1.45; }
+.evidence-item span { display: block; color: #737e8c; font-size: 9px; margin-top: 4px; }
+.signal-table-panel { margin-top: 0; }
+.signal-copy-cell { min-width: 340px; max-width: 580px; }
+.provider-chip { display: inline-flex; border: 1px solid #2f3844; border-radius: 999px; padding: 4px 7px; background: #141920; color: var(--accent-2); text-transform: uppercase; letter-spacing: .06em; font-size: 8px; font-weight: 750; }
+.status-select { min-width: 112px; padding: 6px 8px; font-size: 10px; }
+.status-select:disabled { opacity: .55; }
+
+@media (max-width: 1100px) {
+  .pain-point-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .pain-point-grid { grid-template-columns: 1fr; }
+  .inline-action { align-items: stretch; width: 100%; }
+  .signal-form-footer { align-items: flex-start; flex-direction: column; }
+}
