@@ -58,7 +58,7 @@ jobs:
         run: docker compose build api worker web
       - name: Boot complete stack
         run: docker compose up -d
-      - name: Smoke test API auth and web proxy
+      - name: Smoke test API auth, RBAC and web proxy
         run: |
           api_ready=0
           web_ready=0
@@ -74,6 +74,27 @@ jobs:
           unauth_status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/v1/dashboard)
           test "$unauth_status" = "401"
           curl -fsS -H "Authorization: Bearer $DEVRELOS_API_TOKEN" http://127.0.0.1:8080/api/v1/dashboard >/dev/null
+
+          user_json=$(curl -fsS -H "Authorization: Bearer $DEVRELOS_API_TOKEN" -H 'Content-Type: application/json' \
+            -d '{"email":"ci-viewer@example.invalid","displayName":"CI Viewer","status":"active"}' \
+            http://127.0.0.1:8080/api/v1/identity/users)
+          user_id=$(printf '%s' "$user_json" | jq -r '.id')
+          test -n "$user_id"
+
+          curl -fsS -X PUT -H "Authorization: Bearer $DEVRELOS_API_TOKEN" -H 'Content-Type: application/json' \
+            -d "{\"userId\":\"$user_id\",\"role\":\"viewer\"}" \
+            http://127.0.0.1:8080/api/v1/identity/memberships >/dev/null
+
+          key_json=$(curl -fsS -H "Authorization: Bearer $DEVRELOS_API_TOKEN" -H 'Content-Type: application/json' \
+            -d '{"name":"CI smoke key"}' \
+            "http://127.0.0.1:8080/api/v1/identity/users/$user_id/api-keys")
+          user_token=$(printf '%s' "$key_json" | jq -r '.token')
+          test "${user_token#drk_}" != "$user_token"
+
+          curl -fsS -H "Authorization: Bearer $user_token" http://127.0.0.1:8080/api/v1/dashboard >/dev/null
+          viewer_write_status=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $user_token" -H 'Content-Type: application/json' \
+            -d '{"name":"Viewer must not create this event"}' http://127.0.0.1:8080/api/v1/events)
+          test "$viewer_write_status" = "403"
 
           for i in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:3000/ >/dev/null; then web_ready=1; break; fi
