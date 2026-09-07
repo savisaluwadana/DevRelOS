@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./manage.css";
 import "./signals.css";
+import "./outreach.css";
 
 export const metadata: Metadata = {
   title: "DevRelOS",
@@ -14,7 +15,7 @@ const nav = [
   { label: "Events & CFPs", href: "/manage#cfps" },
   { label: "Communities", href: "/manage#communities" },
   { label: "Talk Library", href: "/manage#talks" },
-  { label: "Outreach", href: "/#outreach" },
+  { label: "Outreach", href: "/outreach" },
   { label: "Content", href: "/#content" },
   { label: "Feedback", href: "/#feedback" },
   { label: "Analytics", href: "/#analytics" },
