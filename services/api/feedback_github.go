@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -69,7 +70,7 @@ func (a *api) syncFeedbackGitHubIssue(w http.ResponseWriter, r *http.Request) {
 	owner, repo, err := parseGitHubRepository(item.GitHubRepository)
 	if err != nil { writeBadRequest(w, err.Error()); return }
 
-	ctx, cancel := contextWithTimeout(r, 5*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		fmt.Sprintf("https://api.github.com/repos/%s/%s/issues/%d", owner, repo, *item.GitHubIssueNumber), nil)
@@ -94,15 +95,15 @@ func (a *api) syncFeedbackGitHubIssue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var payload struct {
-		HTMLURL    string     `json:"html_url"`
-		Title      string     `json:"title"`
-		State      string     `json:"state"`
-		Comments   int        `json:"comments"`
-		UpdatedAt  time.Time  `json:"updated_at"`
-		ClosedAt   *time.Time `json:"closed_at"`
-		PullRequest any       `json:"pull_request"`
-		User       struct { Login string `json:"login"` } `json:"user"`
-		Labels     []struct { Name string `json:"name"` } `json:"labels"`
+		HTMLURL     string     `json:"html_url"`
+		Title       string     `json:"title"`
+		State       string     `json:"state"`
+		Comments    int        `json:"comments"`
+		UpdatedAt   time.Time  `json:"updated_at"`
+		ClosedAt    *time.Time `json:"closed_at"`
+		PullRequest any        `json:"pull_request"`
+		User        struct { Login string `json:"login"` } `json:"user"`
+		Labels      []struct { Name string `json:"name"` } `json:"labels"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "GitHub returned an unreadable issue payload"})
@@ -135,8 +136,4 @@ func (a *api) syncFeedbackGitHubIssue(w http.ResponseWriter, r *http.Request) {
 		"labels": labels,
 		"note": "DevRelOS does not automatically change feedback lifecycle state from GitHub issue state.",
 	})
-}
-
-func contextWithTimeout(r *http.Request, duration time.Duration) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(r.Context(), duration)
 }
