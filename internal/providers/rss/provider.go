@@ -7,10 +7,12 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -19,15 +21,15 @@ import (
 
 const maxFeedBytes = 2 << 20
 
+var htmlTag = regexp.MustCompile(`<[^>]+>`)
+
 type Provider struct {
 	client           *http.Client
 	allowUnsafeLocal bool
 }
 
 func New() *Provider {
-	p := &Provider{}
-	p.client = newSafeClient()
-	return p
+	return &Provider{client: newSafeClient()}
 }
 
 func (p *Provider) ID() string { return "rss" }
@@ -111,6 +113,7 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 		if !matchesAll(queryTerms, strings.ToLower(entry.Title+"\n"+entry.Body)) {
 			continue
 		}
+
 		externalID := strings.TrimSpace(entry.ID)
 		if externalID == "" {
 			externalID = strings.TrimSpace(entry.Link)
@@ -124,13 +127,14 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 			canonicalURL = feedURL
 		}
 		timestamp := parsePublished(entry.Published)
+
 		result.Records = append(result.Records, connectors.RawRecord{
 			ExternalID:      externalID,
 			CanonicalURL:    canonicalURL,
 			SourceTimestamp: timestamp,
 			Payload: map[string]any{
-				"feed_url": feedURL,
-				"entry_id": entry.ID,
+				"feed_url":  feedURL,
+				"entry_id":  entry.ID,
 				"published": entry.Published,
 			},
 			Normalized: connectors.NormalizedRecord{
@@ -195,6 +199,7 @@ func parseFeed(body []byte) ([]feedEntry, error) {
 	if err := xml.Unmarshal(body, &root); err != nil {
 		return nil, fmt.Errorf("invalid XML feed: %w", err)
 	}
+
 	switch strings.ToLower(root.XMLName.Local) {
 	case "rss":
 		var doc rssDocument
@@ -211,9 +216,13 @@ func parseFeed(body []byte) ([]feedEntry, error) {
 			if strings.TrimSpace(author) == "" {
 				author = item.Author
 			}
-			entries = append(entries, feedEntry{ID: item.GUID, Title: item.Title, Body: bodyText, Link: item.Link, Published: item.PubDate, Author: author})
+			entries = append(entries, feedEntry{
+				ID: item.GUID, Title: item.Title, Body: bodyText, Link: item.Link,
+				Published: item.PubDate, Author: author,
+			})
 		}
 		return entries, nil
+
 	case "feed":
 		var doc atomDocument
 		if err := xml.Unmarshal(body, &doc); err != nil {
@@ -236,9 +245,13 @@ func parseFeed(body []byte) ([]feedEntry, error) {
 					break
 				}
 			}
-			entries = append(entries, feedEntry{ID: item.ID, Title: item.Title, Body: bodyText, Link: link, Published: published, Author: item.Author.Name})
+			entries = append(entries, feedEntry{
+				ID: item.ID, Title: item.Title, Body: bodyText, Link: link,
+				Published: published, Author: item.Author.Name,
+			})
 		}
 		return entries, nil
+
 	default:
 		return nil, fmt.Errorf("unsupported feed root %q; expected RSS or Atom", root.XMLName.Local)
 	}
@@ -293,6 +306,7 @@ func validateURL(parsed *url.URL, allowUnsafeLocal bool) error {
 	if parsed.User != nil {
 		return errors.New("feed_url must not include user credentials")
 	}
+
 	host := strings.ToLower(strings.TrimSuffix(parsed.Hostname(), "."))
 	if !allowUnsafeLocal && (host == "localhost" || strings.HasSuffix(host, ".localhost")) {
 		return errors.New("feed_url hostname is not allowed")
@@ -307,7 +321,8 @@ func isPublicIP(ip net.IP) bool {
 	if ip == nil {
 		return false
 	}
-	return !ip.IsLoopback() && !ip.IsPrivate() && !ip.IsLinkLocalUnicast() && !ip.IsLinkLocalMulticast() && !ip.IsUnspecified() && !ip.IsMulticast()
+	return !ip.IsLoopback() && !ip.IsPrivate() && !ip.IsLinkLocalUnicast() &&
+		!ip.IsLinkLocalMulticast() && !ip.IsUnspecified() && !ip.IsMulticast()
 }
 
 func parsePublished(value string) *time.Time {
@@ -326,38 +341,9 @@ func parsePublished(value string) *time.Time {
 }
 
 func cleanText(value string) string {
-	value = htmlTags.ReplaceAllString(value, " ")
-	value = strings.NewReplacer("&amp;", "&", "&lt;", "<", "&gt;", ">", "&quot;", `"`, "&#39;", "'").Replace(value)
+	value = html.UnescapeString(value)
+	value = htmlTag.ReplaceAllString(value, " ")
 	return strings.Join(strings.Fields(value), " ")
-}
-
-var htmlTags = regexpMustCompile(`<[^>]+>`)
-
-func regexpMustCompile(pattern string) interface{ ReplaceAllString(string, string) string } {
-	return stringReplacer{pattern: pattern}
-}
-
-type stringReplacer struct{ pattern string }
-
-func (stringReplacer) ReplaceAllString(value, replacement string) string {
-	// Feed markup is commonly simple HTML. Avoid a heavyweight parser and strip tags with a small scanner.
-	var b strings.Builder
-	inTag := false
-	for _, r := range value {
-		switch r {
-		case '<':
-			inTag = true
-		case '>':
-			if inTag {
-				inTag = false
-			}
-		default:
-			if !inTag {
-				b.WriteRune(r)
-			}
-		}
-	}
-	return strings.ReplaceAll(b.String(), replacement+replacement, replacement)
 }
 
 func splitQuery(value string) []string {
