@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 const cookieName = "devrelos_user_token";
 const backendURL = process.env.DEVRELOS_API_URL ?? "http://localhost:8080";
 
+function secureCookie() {
+  return (process.env.DEVRELOS_SESSION_SECURE_COOKIE ?? "").toLowerCase() === "true";
+}
+
 export async function POST(request: NextRequest) {
   let body: { token?: string } = {};
   try {
@@ -38,7 +42,7 @@ export async function POST(request: NextRequest) {
   response.cookies.set(cookieName, token, {
     httpOnly: true,
     sameSite: "strict",
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookie(),
     path: "/",
     maxAge
   });
