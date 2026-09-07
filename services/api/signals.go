@@ -18,6 +18,7 @@ func (a *api) registerSignalRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/pain-points", a.listPainPoints)
 	mux.HandleFunc("GET /api/v1/pain-points/{id}/evidence", a.listPainPointEvidence)
 	mux.HandleFunc("POST /api/v1/pain-points/rebuild", a.rebuildPainPoints)
+	a.registerFeedbackRoutes(mux)
 }
 
 func (a *api) listSignals(w http.ResponseWriter, r *http.Request) {
