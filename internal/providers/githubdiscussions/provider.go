@@ -7,11 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/savisaluwadana/DevRelOS/internal/connectors"
+	"github.com/savisaluwadana/DevRelOS/internal/providers/githubauth"
 )
 
 const defaultGraphQLURL = "https://api.github.com/graphql"
@@ -37,12 +37,8 @@ func (p *Provider) ValidateConfig(config map[string]any) error {
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return errors.New("repository must use owner/repo format")
 	}
-	tokenEnv, _ := config["token_env"].(string)
-	if strings.TrimSpace(tokenEnv) == "" {
-		return errors.New("token_env is required for GitHub Discussions GraphQL access")
-	}
-	if os.Getenv(strings.TrimSpace(tokenEnv)) == "" {
-		return fmt.Errorf("token environment variable %q is not set", strings.TrimSpace(tokenEnv))
+	if !githubauth.HasToken(config) {
+		return errors.New("GitHub Discussions requires an encrypted connector secret or token_env credential")
 	}
 	return nil
 }
@@ -54,7 +50,7 @@ func (p *Provider) Policy(config map[string]any) connectors.Policy {
 		MonthlyBudgetUSD:  0,
 		StoreRawPayload:   false,
 		CommercialUseOK:   true,
-		Notes:             "Uses GitHub's authenticated GraphQL API for repository Discussions. The connector stores normalized discussion evidence and canonical links. Authentication is supplied only through a worker environment-variable reference.",
+		Notes:             "Uses GitHub's authenticated GraphQL API for repository Discussions. Credentials may be hydrated from encrypted workspace secrets or an environment-variable reference. The connector stores normalized discussion evidence and canonical links.",
 	}
 }
 
@@ -103,16 +99,16 @@ type graphQLResponse struct {
 }
 
 type discussion struct {
-	Number     int       `json:"number"`
-	Title      string    `json:"title"`
-	BodyText   string    `json:"bodyText"`
-	URL        string    `json:"url"`
-	CreatedAt  time.Time `json:"createdAt"`
-	UpdatedAt  time.Time `json:"updatedAt"`
-	Closed     bool      `json:"closed"`
-	IsAnswered *bool     `json:"isAnswered"`
-	UpvoteCount int      `json:"upvoteCount"`
-	Comments   struct {
+	Number      int       `json:"number"`
+	Title       string    `json:"title"`
+	BodyText    string    `json:"bodyText"`
+	URL         string    `json:"url"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+	Closed      bool      `json:"closed"`
+	IsAnswered  *bool     `json:"isAnswered"`
+	UpvoteCount int       `json:"upvoteCount"`
+	Comments    struct {
 		TotalCount int `json:"totalCount"`
 	} `json:"comments"`
 	Category struct {
@@ -158,9 +154,8 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "DevRelOS/0.5 (+https://github.com/savisaluwadana/DevRelOS)")
-	tokenEnv := strings.TrimSpace(config["token_env"].(string))
-	req.Header.Set("Authorization", "Bearer "+os.Getenv(tokenEnv))
+	req.Header.Set("User-Agent", "DevRelOS/1.0 (+https://github.com/savisaluwadana/DevRelOS)")
+	req.Header.Set("Authorization", "Bearer "+githubauth.Token(config))
 
 	resp, err := p.client.Do(req)
 	if err != nil {
@@ -213,14 +208,14 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 			CanonicalURL:    item.URL,
 			SourceTimestamp: &timestamp,
 			Payload: map[string]any{
-				"repository": repository,
-				"number": item.Number,
-				"closed": item.Closed,
+				"repository":  repository,
+				"number":      item.Number,
+				"closed":      item.Closed,
 				"is_answered": item.IsAnswered,
-				"upvotes": item.UpvoteCount,
-				"comments": item.Comments.TotalCount,
-				"category": item.Category.Name,
-				"created_at": item.CreatedAt,
+				"upvotes":     item.UpvoteCount,
+				"comments":    item.Comments.TotalCount,
+				"category":    item.Category.Name,
+				"created_at":  item.CreatedAt,
 			},
 			Normalized: connectors.NormalizedRecord{
 				Kind:            "signal",

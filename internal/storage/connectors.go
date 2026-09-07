@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	domain "github.com/savisaluwadana/DevRelOS/internal/domain/connectors"
+	"github.com/jackc/pgx/v5"
 )
 
 func (s *Store) DefaultWorkspaceID(ctx context.Context) (string, error) {
@@ -16,7 +17,7 @@ func (s *Store) DefaultWorkspaceID(ctx context.Context) (string, error) {
 func (s *Store) ListConnectors(ctx context.Context, workspaceID string) ([]domain.Connector, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, workspace_id::text, provider, name, enabled, config, policy,
-		       schedule_minutes, next_run_at, created_at, updated_at
+		       COALESCE(secret_id::text,''), schedule_minutes, next_run_at, created_at, updated_at
 		FROM connectors
 		WHERE workspace_id=$1
 		ORDER BY provider, name`, workspaceID)
@@ -30,7 +31,7 @@ func (s *Store) ListConnectors(ctx context.Context, workspaceID string) ([]domai
 		var item domain.Connector
 		var configJSON, policyJSON []byte
 		if err := rows.Scan(&item.ID, &item.WorkspaceID, &item.Provider, &item.Name, &item.Enabled,
-			&configJSON, &policyJSON, &item.ScheduleMinutes, &item.NextRunAt, &item.CreatedAt, &item.UpdatedAt); err != nil {
+			&configJSON, &policyJSON, &item.SecretID, &item.ScheduleMinutes, &item.NextRunAt, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return nil, err
 		}
 		item.Config = map[string]any{}
@@ -62,13 +63,27 @@ func (s *Store) CreateConnector(ctx context.Context, item domain.Connector) (dom
 	}
 
 	err = s.pool.QueryRow(ctx, `
-		INSERT INTO connectors (workspace_id, provider, name, enabled, config, policy, schedule_minutes, next_run_at)
-		VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7,
-		        CASE WHEN $7::integer IS NULL THEN NULL ELSE now() END)
-		RETURNING id::text, schedule_minutes, next_run_at, created_at, updated_at`,
-		item.WorkspaceID, item.Provider, item.Name, item.Enabled, configJSON, policyJSON, item.ScheduleMinutes).
-		Scan(&item.ID, &item.ScheduleMinutes, &item.NextRunAt, &item.CreatedAt, &item.UpdatedAt)
+		INSERT INTO connectors (workspace_id, provider, name, enabled, config, policy, secret_id, schedule_minutes, next_run_at)
+		VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,NULLIF($7,'')::uuid,$8,
+		        CASE WHEN $8::integer IS NULL THEN NULL ELSE now() END)
+		RETURNING id::text, COALESCE(secret_id::text,''), schedule_minutes, next_run_at, created_at, updated_at`,
+		item.WorkspaceID, item.Provider, item.Name, item.Enabled, configJSON, policyJSON, item.SecretID, item.ScheduleMinutes).
+		Scan(&item.ID, &item.SecretID, &item.ScheduleMinutes, &item.NextRunAt, &item.CreatedAt, &item.UpdatedAt)
 	return item, err
+}
+
+func (s *Store) UpdateConnectorSecret(ctx context.Context, workspaceID, connectorID, secretID string) error {
+	command, err := s.pool.Exec(ctx, `
+		UPDATE connectors
+		SET secret_id=NULLIF($3,'')::uuid, updated_at=now()
+		WHERE id=$1 AND workspace_id=$2`, connectorID, workspaceID, secretID)
+	if err != nil {
+		return err
+	}
+	if command.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
 }
 
 func (s *Store) ListConnectorRuns(ctx context.Context, connectorID string) ([]domain.Run, error) {

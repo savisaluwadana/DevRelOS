@@ -26,7 +26,8 @@ func (s *Store) ClaimNextConnectorRun(ctx context.Context) (*ClaimedConnectorRun
 	var configJSON, policyJSON []byte
 	err = tx.QueryRow(ctx, `
 		SELECT r.id::text, r.connector_id::text, r.created_at,
-		       c.id::text, c.workspace_id::text, c.provider, c.name, c.enabled, c.config, c.policy, c.created_at, c.updated_at
+		       c.id::text, c.workspace_id::text, c.provider, c.name, c.enabled, c.config, c.policy,
+		       COALESCE(c.secret_id::text,''), c.created_at, c.updated_at
 		FROM connector_runs r
 		JOIN connectors c ON c.id=r.connector_id
 		WHERE r.status='queued'
@@ -36,7 +37,7 @@ func (s *Store) ClaimNextConnectorRun(ctx context.Context) (*ClaimedConnectorRun
 		&claimed.Run.ID, &claimed.Run.ConnectorID, &claimed.Run.CreatedAt,
 		&claimed.Connector.ID, &claimed.Connector.WorkspaceID, &claimed.Connector.Provider,
 		&claimed.Connector.Name, &claimed.Connector.Enabled, &configJSON, &policyJSON,
-		&claimed.Connector.CreatedAt, &claimed.Connector.UpdatedAt,
+		&claimed.Connector.SecretID, &claimed.Connector.CreatedAt, &claimed.Connector.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil

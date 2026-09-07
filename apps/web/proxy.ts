@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const sessionCookie = "devrelos_user_token";
+const sessionCookie = "devrelos_session";
 
 type SessionPrincipal = {
   kind?: string;
@@ -27,6 +27,8 @@ function securityHeaders(response: NextResponse) {
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("Referrer-Policy", "no-referrer");
+  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  if (secureCookie()) response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   return response;
 }
 
@@ -37,8 +39,8 @@ function unauthorized() {
   }));
 }
 
-function isSessionEndpoint(pathname: string) {
-  return pathname.startsWith("/api/session/");
+function isPublicSessionPath(pathname: string) {
+  return pathname === "/login" || pathname === "/invite" || pathname.startsWith("/api/session/");
 }
 
 async function sessionPrincipal(token: string): Promise<SessionPrincipal | null> {
@@ -79,17 +81,15 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   if (sessionsEnabled) {
-    if (isSessionEndpoint(pathname)) return securityHeaders(NextResponse.next());
-
     const token = request.cookies.get(sessionCookie)?.value?.trim() ?? "";
-    if (!token.startsWith("drk_")) {
-      if (pathname === "/login") return nextWithRequestHeaders(request, { "x-devrelos-login-page": "1" });
+    if (!token.startsWith("ds_")) {
+      if (isPublicSessionPath(pathname)) return nextWithRequestHeaders(request, { "x-devrelos-login-page": "1" });
       return clearAndRedirect(request);
     }
 
     const principal = await sessionPrincipal(token);
     if (!principal || principal.kind !== "user") return clearAndRedirect(request);
-    if (pathname === "/login") return securityHeaders(NextResponse.redirect(new URL("/", request.url)));
+    if (pathname === "/login" || pathname === "/invite") return securityHeaders(NextResponse.redirect(new URL("/", request.url)));
 
     if (pathname === "/access" && principal.role !== "owner" && principal.role !== "admin") {
       return securityHeaders(NextResponse.redirect(new URL("/", request.url)));
@@ -110,13 +110,8 @@ export async function proxy(request: NextRequest) {
   if (username && password) {
     const header = request.headers.get("authorization") ?? "";
     if (!header.startsWith("Basic ")) return unauthorized();
-
     let decoded = "";
-    try {
-      decoded = atob(header.slice(6));
-    } catch {
-      return unauthorized();
-    }
+    try { decoded = atob(header.slice(6)); } catch { return unauthorized(); }
     const separator = decoded.indexOf(":");
     if (separator < 0) return unauthorized();
     const suppliedUser = decoded.slice(0, separator);

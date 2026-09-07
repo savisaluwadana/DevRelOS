@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/savisaluwadana/DevRelOS/internal/connectors"
+	"github.com/savisaluwadana/DevRelOS/internal/providers/githubauth"
 )
 
 const defaultBaseURL = "https://api.github.com"
@@ -43,8 +43,7 @@ func (p *Provider) ValidateConfig(config map[string]any) error {
 }
 
 func (p *Provider) Policy(config map[string]any) connectors.Policy {
-	tokenEnv, _ := config["token_env"].(string)
-	authenticated := strings.TrimSpace(tokenEnv) != "" && os.Getenv(strings.TrimSpace(tokenEnv)) != ""
+	authenticated := githubauth.HasToken(config)
 	rpm := 1
 	daily := 1200
 	if authenticated {
@@ -57,22 +56,22 @@ func (p *Provider) Policy(config map[string]any) connectors.Policy {
 		MonthlyBudgetUSD:  0,
 		StoreRawPayload:   false,
 		CommercialUseOK:   true,
-		Notes:             "Uses GitHub's repository Releases REST endpoint. Public releases can be read without authentication; optional authentication uses a token referenced by environment-variable name. Release notes remain source-owned and are retained as normalized evidence with canonical links.",
+		Notes:             "Uses GitHub's repository Releases REST endpoint. Credentials may be hydrated from encrypted workspace secrets or, for backwards compatibility, an environment-variable reference. Release notes remain source-owned and are retained as normalized evidence with canonical links.",
 	}
 }
 
 type release struct {
-	ID           int64      `json:"id"`
-	TagName      string     `json:"tag_name"`
-	Name         string     `json:"name"`
-	Body         string     `json:"body"`
-	HTMLURL      string     `json:"html_url"`
-	Draft        bool       `json:"draft"`
-	Prerelease   bool       `json:"prerelease"`
-	CreatedAt    time.Time  `json:"created_at"`
-	PublishedAt  *time.Time `json:"published_at"`
-	Author       user       `json:"author"`
-	Assets       []asset    `json:"assets"`
+	ID          int64      `json:"id"`
+	TagName     string     `json:"tag_name"`
+	Name        string     `json:"name"`
+	Body        string     `json:"body"`
+	HTMLURL     string     `json:"html_url"`
+	Draft       bool       `json:"draft"`
+	Prerelease  bool       `json:"prerelease"`
+	CreatedAt   time.Time  `json:"created_at"`
+	PublishedAt *time.Time `json:"published_at"`
+	Author      user       `json:"author"`
+	Assets      []asset    `json:"assets"`
 }
 
 type user struct {
@@ -117,11 +116,9 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", apiVersion)
-	req.Header.Set("User-Agent", "DevRelOS/0.5 (+https://github.com/savisaluwadana/DevRelOS)")
-	if tokenEnv, _ := config["token_env"].(string); strings.TrimSpace(tokenEnv) != "" {
-		if token := os.Getenv(strings.TrimSpace(tokenEnv)); token != "" {
-			req.Header.Set("Authorization", "Bearer "+token)
-		}
+	req.Header.Set("User-Agent", "DevRelOS/1.0 (+https://github.com/savisaluwadana/DevRelOS)")
+	if token := githubauth.Token(config); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
 	resp, err := p.client.Do(req)

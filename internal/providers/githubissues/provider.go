@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/savisaluwadana/DevRelOS/internal/connectors"
+	"github.com/savisaluwadana/DevRelOS/internal/providers/githubauth"
 )
 
 const defaultBaseURL = "https://api.github.com"
@@ -46,8 +46,7 @@ func (p *Provider) ValidateConfig(config map[string]any) error {
 }
 
 func (p *Provider) Policy(config map[string]any) connectors.Policy {
-	tokenEnv, _ := config["token_env"].(string)
-	authenticated := strings.TrimSpace(tokenEnv) != "" && os.Getenv(strings.TrimSpace(tokenEnv)) != ""
+	authenticated := githubauth.HasToken(config)
 	rpm := 1
 	daily := 1200
 	if authenticated {
@@ -60,7 +59,7 @@ func (p *Provider) Policy(config map[string]any) connectors.Policy {
 		MonthlyBudgetUSD:  0,
 		StoreRawPayload:   false,
 		CommercialUseOK:   true,
-		Notes:             "Uses GitHub's repository Issues REST endpoint. Public repositories can be read without authentication; a token may be supplied through an environment-variable name. Issue content remains source-owned; DevRelOS stores normalized evidence and canonical links by default.",
+		Notes:             "Uses GitHub's repository Issues REST endpoint. Credentials may be hydrated from encrypted workspace secrets or an environment-variable reference. Issue content remains source-owned; DevRelOS stores normalized evidence and canonical links by default.",
 	}
 }
 
@@ -136,11 +135,9 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", apiVersion)
-	req.Header.Set("User-Agent", "DevRelOS/0.4 (+https://github.com/savisaluwadana/DevRelOS)")
-	if tokenEnv, _ := config["token_env"].(string); strings.TrimSpace(tokenEnv) != "" {
-		if token := os.Getenv(strings.TrimSpace(tokenEnv)); token != "" {
-			req.Header.Set("Authorization", "Bearer "+token)
-		}
+	req.Header.Set("User-Agent", "DevRelOS/1.0 (+https://github.com/savisaluwadana/DevRelOS)")
+	if token := githubauth.Token(config); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
 	resp, err := p.client.Do(req)
@@ -190,10 +187,10 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 			SourceTimestamp: &timestamp,
 			Payload: map[string]any{
 				"repository": repository,
-				"number": item.Number,
-				"state": item.State,
-				"comments": item.Comments,
-				"reactions": item.Reactions.TotalCount,
+				"number":     item.Number,
+				"state":      item.State,
+				"comments":   item.Comments,
+				"reactions":  item.Reactions.TotalCount,
 				"created_at": item.CreatedAt,
 			},
 			Normalized: connectors.NormalizedRecord{
