@@ -1,3 +1,5 @@
+import { serverFetch } from "@/lib/server-api";
+
 export type WorkItemKind =
   | "content_brief"
   | "docs_improvement"
@@ -27,14 +29,9 @@ export type WorkItem = {
   updatedAt: string;
 };
 
-const apiURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
-
 export async function getWorkItems(): Promise<{ items: WorkItem[]; connected: boolean }> {
   try {
-    const response = await fetch(`${apiURL}/api/v1/work-items?limit=300`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(3000)
-    });
+    const response = await serverFetch("/api/v1/work-items?limit=300", { signal: AbortSignal.timeout(3000) });
     if (!response.ok) return { items: [], connected: false };
     return { items: (await response.json()) as WorkItem[], connected: true };
   } catch {
