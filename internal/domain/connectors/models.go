@@ -3,15 +3,17 @@ package connectors
 import "time"
 
 type Connector struct {
-	ID          string         `json:"id"`
-	WorkspaceID string         `json:"workspaceId"`
-	Provider    string         `json:"provider"`
-	Name        string         `json:"name"`
-	Enabled     bool           `json:"enabled"`
-	Config      map[string]any `json:"config"`
-	Policy      map[string]any `json:"policy"`
-	CreatedAt   time.Time      `json:"createdAt"`
-	UpdatedAt   time.Time      `json:"updatedAt"`
+	ID              string         `json:"id"`
+	WorkspaceID     string         `json:"workspaceId"`
+	Provider        string         `json:"provider"`
+	Name            string         `json:"name"`
+	Enabled         bool           `json:"enabled"`
+	Config          map[string]any `json:"config"`
+	Policy          map[string]any `json:"policy"`
+	ScheduleMinutes *int           `json:"scheduleMinutes,omitempty"`
+	NextRunAt       *time.Time     `json:"nextRunAt,omitempty"`
+	CreatedAt       time.Time      `json:"createdAt"`
+	UpdatedAt       time.Time      `json:"updatedAt"`
 }
 
 type Run struct {
