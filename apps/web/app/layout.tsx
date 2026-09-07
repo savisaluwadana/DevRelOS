@@ -8,6 +8,7 @@ import "./work.css";
 import "./content.css";
 import "./feedback.css";
 import "./media.css";
+import "./access.css";
 
 export const metadata: Metadata = {
   title: "DevRelOS",
@@ -26,7 +27,8 @@ const nav = [
   { label: "Talk Library", href: "/manage#talks" },
   { label: "Outreach", href: "/outreach" },
   { label: "Feedback", href: "/feedback" },
-  { label: "Integrations", href: "/integrations" }
+  { label: "Integrations", href: "/integrations" },
+  { label: "Access & Security", href: "/access" }
 ];
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
