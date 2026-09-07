@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { PrimaryNav } from "@/components/primary-nav";
 import { SessionLogout } from "@/components/session-login";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import "./globals.css";
@@ -10,9 +11,11 @@ import "./opportunities.css";
 import "./work.css";
 import "./content.css";
 import "./feedback.css";
+import "./feedback-github.css";
 import "./media.css";
 import "./access.css";
 import "./campaigns.css";
+import "./calendar.css";
 
 export const metadata: Metadata = {
   title: "DevRelOS",
@@ -21,6 +24,7 @@ export const metadata: Metadata = {
 
 const nav = [
   { label: "Command Center", href: "/" },
+  { label: "Calendar", href: "/calendar" },
   { label: "Signals", href: "/signals" },
   { label: "Opportunities", href: "/opportunities" },
   { label: "Campaigns & Attribution", href: "/campaigns" },
@@ -46,7 +50,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const displayName = requestHeaders.get("x-devrelos-user-display-name") ?? "";
   const workspaceId = requestHeaders.get("x-devrelos-workspace-id") ?? "";
   const canAdmin = !sessionsEnabled || role === "owner" || role === "admin";
-  const visibleNav = nav.filter((item) => !item.adminOnly || canAdmin);
+  const visibleNav = nav.filter((item) => !item.adminOnly || canAdmin).map(({ label, href }) => ({ label, href }));
 
   if (loginPage) {
     return <html lang="en"><body><main className="login-shell">{children}</main></body></html>;
@@ -61,13 +65,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <div className="brand-mark">DR</div>
               <div><strong>DevRelOS</strong><span>Operator Console</span></div>
             </a>
-            <nav className="nav-list" aria-label="Primary">
-              {visibleNav.map((item, index) => (
-                <a className={index === 0 ? "nav-item active" : "nav-item"} href={item.href} key={item.label}>
-                  <span className="nav-dot" />{item.label}
-                </a>
-              ))}
-            </nav>
+            <PrimaryNav items={visibleNav} />
             <div className="sidebar-footer session-footer">
               {sessionsEnabled && workspaceId ? <WorkspaceSwitcher currentWorkspaceId={workspaceId} /> : null}
               <div className="session-identity">

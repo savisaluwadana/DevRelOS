@@ -1,5 +1,6 @@
 import { CampaignAttribution } from "@/components/campaign-attribution";
 import { FeedbackEditor, ManualFeedbackForm } from "@/components/feedback-actions";
+import { FeedbackGitHubActions } from "@/components/feedback-github-actions";
 import { feedbackStatusLabels, getFeedbackItems } from "@/lib/feedback-api";
 import { formatDateTime } from "@/lib/api";
 
@@ -42,16 +43,19 @@ export default async function FeedbackPage() {
       </section>
 
       <section className="panel feedback-pipeline-panel">
-        <div className="panel-head"><div><span className="eyebrow">Product Loop</span><h2>New → triage → plan → build → ship</h2></div><span className="muted panel-note">GitHub issue text is a reviewable draft; external issue creation is not automatic.</span></div>
+        <div className="panel-head"><div><span className="eyebrow">Product Loop</span><h2>New → triage → plan → build → ship</h2></div><span className="muted panel-note">Issue creation stays explicit: DevRelOS opens a prefilled GitHub form, then syncs linked public issue state without auto-changing feedback status.</span></div>
         <div className="feedback-list">
           {data.items.length === 0 ? <p className="empty-copy">No product feedback yet. Convert a pain point from Signal Radar or capture one above.</p> : data.items.map((item) => {
             const evidenceCount = typeof item.metadata?.evidenceCount === "number" ? Number(item.metadata.evidenceCount) : undefined;
+            const githubState = typeof item.metadata?.githubIssueState === "string" ? String(item.metadata.githubIssueState) : "";
+            const githubSyncedAt = typeof item.metadata?.githubIssueSyncedAt === "string" ? String(item.metadata.githubIssueSyncedAt) : "";
+            const githubComments = typeof item.metadata?.githubIssueComments === "number" ? Number(item.metadata.githubIssueComments) : undefined;
             return (
               <article className="feedback-card" key={item.id}>
                 <div className="feedback-card-main">
                   <div className="feedback-card-head">
                     <div>
-                      <div className="feedback-kickers"><span className="pill neutral">{feedbackStatusLabels[item.status]}</span>{item.component && <span className="platform-badge">{item.component}</span>}</div>
+                      <div className="feedback-kickers"><span className="pill neutral">{feedbackStatusLabels[item.status]}</span>{item.component && <span className="platform-badge">{item.component}</span>}{githubState && <span className={`pill github-issue-state ${githubState}`}>GitHub {githubState}</span>}</div>
                       <h3>{item.title}</h3>
                     </div>
                     <div className="feedback-scores">
@@ -68,6 +72,7 @@ export default async function FeedbackPage() {
                     <span>Source: {item.sourceType.replaceAll("_", " ")}</span>
                     <span>Evidence: {evidenceCount ?? "—"}</span>
                     <span>Updated: {formatDateTime(item.updatedAt)}</span>
+                    {githubSyncedAt && <span>GitHub sync: {formatDateTime(githubSyncedAt)}{githubComments !== undefined ? ` · ${githubComments} comments` : ""}</span>}
                   </div>
 
                   {(item.githubIssueTitle || item.githubIssueBody) && (
@@ -87,6 +92,7 @@ export default async function FeedbackPage() {
                 </div>
                 <aside className="feedback-card-side">
                   <CampaignAttribution entityType="feedback" entityId={item.id} />
+                  <FeedbackGitHubActions item={item} />
                   <FeedbackEditor item={item} />
                 </aside>
               </article>

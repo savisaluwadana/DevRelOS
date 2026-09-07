@@ -38,6 +38,59 @@ func TestAPIClientListForwardsAuthAndQuery(t *testing.T) {
 	}
 }
 
+func TestAPIClientCalendarUnwrapsItems(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/calendar" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("from") != "2026-09-01T00:00:00Z" {
+			t.Fatalf("calendar query not forwarded: %s", r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"from": "2026-09-01T00:00:00Z",
+			"to":   "2026-10-01T00:00:00Z",
+			"items": []map[string]any{{"id": "cfp:1", "kind": "cfp"}},
+		})
+	}))
+	defer server.Close()
+
+	client, err := newAPIClient(server.URL, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := client.calendar(context.Background(), url.Values{"from": {"2026-09-01T00:00:00Z"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0]["kind"] != "cfp" {
+		t.Fatalf("unexpected calendar items: %#v", items)
+	}
+}
+
+func TestAPIClientGet(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/campaigns/campaign-1/report" {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"outcomeScore": 82})
+	}))
+	defer server.Close()
+
+	client, err := newAPIClient(server.URL, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := client.get(context.Background(), "/api/v1/campaigns/campaign-1/report", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item["outcomeScore"] != float64(82) {
+		t.Fatalf("unexpected campaign report: %#v", item)
+	}
+}
+
 func TestAPIClientCreate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/submissions" {

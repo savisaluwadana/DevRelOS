@@ -1,0 +1,1 @@
+.feedback-github-actions{display:flex;flex-direction:column;gap:7px;padding:10px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2)}.feedback-github-actions .action-note{font-size:11px;color:var(--muted);line-height:1.45}.github-issue-state.open{border-color:rgba(16,185,129,.45)}.github-issue-state.closed{border-color:rgba(139,92,246,.5)}

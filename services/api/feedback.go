@@ -13,6 +13,8 @@ func (a *api) registerFeedbackRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/feedback", a.listFeedback)
 	mux.HandleFunc("POST /api/v1/feedback", a.createFeedback)
 	mux.HandleFunc("PATCH /api/v1/feedback/{id}", a.updateFeedback)
+	mux.HandleFunc("GET /api/v1/feedback/{id}/github/prefill", a.feedbackGitHubPrefill)
+	mux.HandleFunc("POST /api/v1/feedback/{id}/github/sync", a.syncFeedbackGitHubIssue)
 	mux.HandleFunc("POST /api/v1/pain-points/{id}/feedback", a.createFeedbackFromPainPoint)
 }
 
