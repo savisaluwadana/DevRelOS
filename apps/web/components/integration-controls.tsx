@@ -60,6 +60,11 @@ export function ConnectorForm() {
         config.scan_limit = Number.isFinite(scanLimit) ? Math.min(Math.max(scanLimit, 1), 100) : 60;
         config.topics = topics;
       }
+      if (selectedProvider === "rss") {
+        config.feed_url = String(data.get("feedUrl") ?? "").trim();
+        config.query = String(data.get("query") ?? "").trim();
+        config.topics = topics;
+      }
 
       const response = await fetch(`${apiURL}/api/v1/connectors`, {
         method: "POST",
@@ -98,7 +103,9 @@ export function ConnectorForm() {
         ? "OpenChoreo GitHub issues"
         : provider === "hackernews"
           ? "Hacker News platform engineering"
-          : "Developer events discovery";
+          : provider === "rss"
+            ? "Kubernetes project blog feed"
+            : "Developer events discovery";
 
   return (
     <form className="operator-form integration-form" onSubmit={submit}>
@@ -110,6 +117,7 @@ export function ConnectorForm() {
             <option value="ocg">CNCF / Open Community Groups</option>
             <option value="github.issues">GitHub repository issues</option>
             <option value="hackernews">Hacker News</option>
+            <option value="rss">RSS / Atom feed</option>
           </select>
         </label>
         <label>Connector name<input name="name" placeholder={placeholder} required /></label>
@@ -187,6 +195,18 @@ export function ConnectorForm() {
             <label>Maximum matches per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="30" /></label>
           </div>
           <p className="policy-note">Hacker News ingestion uses the official Firebase API and performs bounded keyword filtering locally. DevRelOS stores normalized evidence and the canonical HN discussion link.</p>
+        </>
+      )}
+
+      {provider === "rss" && (
+        <>
+          <label>Feed URL<input name="feedUrl" type="url" placeholder="https://example.com/feed.xml" required /></label>
+          <div className="form-grid-three">
+            <label>Optional keyword filter<input name="query" placeholder="platform engineering" /></label>
+            <label>Topics<input name="topics" placeholder="kubernetes, releases, devtools" /></label>
+            <label>Maximum entries per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="50" /></label>
+          </div>
+          <p className="policy-note">RSS/Atom feeds must use HTTPS. The worker blocks private, loopback and link-local destinations after DNS resolution, revalidates redirects and limits feed responses to 2 MiB to reduce SSRF and resource-exhaustion risk.</p>
         </>
       )}
 
