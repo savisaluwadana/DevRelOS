@@ -14,7 +14,7 @@ type listOutput struct {
 }
 
 type itemOutput struct {
-	Item map[string]any `json:"item" jsonschema:"The DevRelOS domain object created by the action"`
+	Item map[string]any `json:"item" jsonschema:"The DevRelOS domain object returned by the operation"`
 }
 
 type signalsSearchInput struct {
@@ -51,6 +51,15 @@ type feedbackListInput struct {
 	Status    string `json:"status,omitempty" jsonschema:"Optional product feedback status filter"`
 	Component string `json:"component,omitempty" jsonschema:"Optional product component filter"`
 	Limit     int    `json:"limit,omitempty" jsonschema:"Maximum results to return, capped at 200"`
+}
+
+type calendarListInput struct {
+	From string `json:"from,omitempty" jsonschema:"Optional RFC3339 start of the calendar range"`
+	To   string `json:"to,omitempty" jsonschema:"Optional RFC3339 end of the calendar range; range cannot exceed 366 days"`
+}
+
+type campaignReportInput struct {
+	CampaignID string `json:"campaignId" jsonschema:"DevRelOS campaign UUID"`
 }
 
 type emptyInput struct{}
@@ -134,6 +143,19 @@ func registerTools(server *mcp.Server, api *apiClient) {
 		return nil, listOutput{Items: items}, err
 	})
 
+	mcp.AddTool(server, &mcp.Tool{Name: "calendar_list", Description: "List the unified DevRel calendar across CFP deadlines, events, work, content, campaigns and relationship follow-ups. Read-only."}, func(ctx context.Context, _ *mcp.CallToolRequest, in calendarListInput) (*mcp.CallToolResult, listOutput, error) {
+		q := url.Values{}
+		setQuery(q, "from", in.From)
+		setQuery(q, "to", in.To)
+		items, err := api.calendar(ctx, q)
+		return nil, listOutput{Items: items}, err
+	})
+
+	mcp.AddTool(server, &mcp.Tool{Name: "campaign_report", Description: "Read a campaign attribution report with derived activity and outcome metrics. Read-only."}, func(ctx context.Context, _ *mcp.CallToolRequest, in campaignReportInput) (*mcp.CallToolResult, itemOutput, error) {
+		item, err := api.get(ctx, "/api/v1/campaigns/"+url.PathEscape(strings.TrimSpace(in.CampaignID))+"/report", nil)
+		return nil, itemOutput{Item: item}, err
+	})
+
 	registerSimpleList(server, api, "events_list", "List tracked developer events. Read-only.", "/api/v1/events")
 	registerSimpleList(server, api, "cfps_list", "List tracked CFPs and deadlines. Read-only.", "/api/v1/cfps")
 	registerSimpleList(server, api, "talks_list", "List reusable talks in the Talk Library. Read-only.", "/api/v1/talks")
@@ -141,6 +163,8 @@ func registerTools(server *mcp.Server, api *apiClient) {
 	registerSimpleList(server, api, "outreach_list", "List speaking/community outreach records. Read-only.", "/api/v1/outreach")
 	registerSimpleList(server, api, "speaking_opportunities_list", "Rank community and talk speaking matches. Read-only.", "/api/v1/opportunities/speaking")
 	registerSimpleList(server, api, "cfp_opportunities_list", "Rank CFP and talk submission matches. Read-only.", "/api/v1/opportunities/cfps")
+	registerSimpleList(server, api, "campaigns_list", "List DevRel campaigns and lifecycle state. Read-only.", "/api/v1/campaigns")
+	registerSimpleList(server, api, "relationship_radar_list", "List relationship health, risk scores and recommended next actions. Read-only.", "/api/v1/relationships/radar")
 
 	mcp.AddTool(server, &mcp.Tool{Name: "pain_points_create_work_item", Description: "Create an internal Action Queue item from a pain point. This changes DevRelOS state but has no external side effect."}, func(ctx context.Context, _ *mcp.CallToolRequest, in painPointWorkInput) (*mcp.CallToolResult, itemOutput, error) {
 		item, err := api.create(ctx, "/api/v1/pain-points/"+url.PathEscape(strings.TrimSpace(in.PainPointID))+"/work-items", map[string]any{"kind": in.Kind, "owner": in.Owner})
