@@ -1,3 +1,4 @@
+import { CampaignAttribution } from "@/components/campaign-attribution";
 import { ContentAssetEditor, ManualContentAssetForm } from "@/components/content-actions";
 import { contentChannelLabels, contentStatusLabels, getContentAssets } from "@/lib/content-api";
 import { formatDateTime } from "@/lib/api";
@@ -75,7 +76,10 @@ export default async function ContentPage() {
                     {asset.workItemId && <a href="/work">Linked work item →</a>}
                   </div>
                 </div>
-                <aside className="content-card-side"><ContentAssetEditor asset={asset} /></aside>
+                <aside className="content-card-side">
+                  <CampaignAttribution entityType="content_asset" entityId={asset.id} channel={asset.channel} />
+                  <ContentAssetEditor asset={asset} />
+                </aside>
               </article>
             );
           })}
