@@ -1,4 +1,4 @@
-import type { Community, Talk } from "@/lib/api";
+import type { CFP, Community, Event, Submission, Talk } from "@/lib/api";
 import type { Relationship } from "@/lib/outreach-api";
 
 export type OpportunityScoreBreakdown = {
@@ -20,17 +20,53 @@ export type SpeakingOpportunity = {
   existingOutreachState?: string;
 };
 
+export type CFPScoreBreakdown = {
+  topicFit: number;
+  readiness: number;
+  deadline: number;
+  existingFit: number;
+  submissionGap: number;
+  penalty: number;
+};
+
+export type CFPOpportunity = {
+  cfp: CFP;
+  event: Event;
+  talk: Talk;
+  score: number;
+  breakdown: CFPScoreBreakdown;
+  reasons: string[];
+  existingSubmission?: Submission;
+};
+
 const apiURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
-export async function getSpeakingOpportunities(minScore = 0): Promise<{ items: SpeakingOpportunity[]; connected: boolean }> {
+async function getJSON<T>(path: string): Promise<T | null> {
   try {
-    const response = await fetch(`${apiURL}/api/v1/opportunities/speaking?limit=100&minScore=${minScore}`, {
+    const response = await fetch(`${apiURL}${path}`, {
       cache: "no-store",
       signal: AbortSignal.timeout(3000)
     });
-    if (!response.ok) return { items: [], connected: false };
-    return { items: (await response.json()) as SpeakingOpportunity[], connected: true };
+    if (!response.ok) return null;
+    return (await response.json()) as T;
   } catch {
-    return { items: [], connected: false };
+    return null;
   }
+}
+
+export async function getSpeakingOpportunities(minScore = 0): Promise<{ items: SpeakingOpportunity[]; connected: boolean }> {
+  const items = await getJSON<SpeakingOpportunity[]>(`/api/v1/opportunities/speaking?limit=100&minScore=${minScore}`);
+  return { items: items ?? [], connected: items !== null };
+}
+
+export async function getOpportunityData(minScore = 0) {
+  const [speaking, cfps] = await Promise.all([
+    getJSON<SpeakingOpportunity[]>(`/api/v1/opportunities/speaking?limit=100&minScore=${minScore}`),
+    getJSON<CFPOpportunity[]>(`/api/v1/opportunities/cfps?limit=100&minScore=${minScore}`)
+  ]);
+  return {
+    speaking: speaking ?? [],
+    cfps: cfps ?? [],
+    connected: speaking !== null && cfps !== null
+  };
 }
