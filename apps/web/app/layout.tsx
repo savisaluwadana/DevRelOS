@@ -12,6 +12,7 @@ import "./content.css";
 import "./feedback.css";
 import "./media.css";
 import "./access.css";
+import "./campaigns.css";
 
 export const metadata: Metadata = {
   title: "DevRelOS",
@@ -22,6 +23,8 @@ const nav = [
   { label: "Command Center", href: "/" },
   { label: "Signals", href: "/signals" },
   { label: "Opportunities", href: "/opportunities" },
+  { label: "Campaigns & Attribution", href: "/campaigns" },
+  { label: "Relationship Radar", href: "/relationships" },
   { label: "Action Queue", href: "/work" },
   { label: "Content Studio", href: "/content" },
   { label: "Media Studio", href: "/media" },
