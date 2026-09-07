@@ -1,4 +1,5 @@
 import OperatorForms from "@/components/operator-forms";
+import SubmissionStatus from "@/components/submission-status";
 import { formatDate, getOperatorData, locationLabel } from "@/lib/api";
 
 export default async function ManagePage() {
@@ -66,8 +67,11 @@ export default async function ManagePage() {
           <div className="stack-list">
             {data.submissions.length === 0 ? <p className="empty-copy">No submissions yet.</p> : data.submissions.map((submission) => (
               <div className="record-row" key={submission.id}>
-                <div><strong>{submission.eventName || "Event"}</strong><span>{submission.talkTitle || "Talk"}</span></div>
-                <span className={submission.status === "accepted" ? "pill open" : "pill neutral"}>{submission.status}</span>
+                <div>
+                  <strong>{submission.eventName || "Event"}</strong>
+                  <span>{submission.talkTitle || "Talk"}{submission.fitScore !== undefined ? ` · fit ${submission.fitScore}` : ""}</span>
+                </div>
+                <SubmissionStatus id={submission.id} initialStatus={submission.status} />
               </div>
             ))}
           </div>
