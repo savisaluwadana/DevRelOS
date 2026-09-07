@@ -37,6 +37,13 @@ export function ConnectorForm() {
         config.query = String(data.get("query") ?? "").trim();
         config.topics = topics;
       }
+      if (selectedProvider === "ocg") {
+        config.community = "cncf";
+        config.query = String(data.get("query") ?? "").trim();
+        config.region = String(data.get("region") ?? "").trim();
+        config.group_category = String(data.get("groupCategory") ?? "").trim();
+        config.topics = topics;
+      }
 
       const response = await fetch(`${apiURL}/api/v1/connectors`, {
         method: "POST",
@@ -67,6 +74,8 @@ export function ConnectorForm() {
     }
   }
 
+  const placeholder = provider === "bluesky" ? "Platform engineering pain points" : provider === "ocg" ? "US platform engineering communities" : "Developer events discovery";
+
   return (
     <form className="operator-form integration-form" onSubmit={submit}>
       <div className="form-grid-two">
@@ -74,12 +83,13 @@ export function ConnectorForm() {
           <select name="provider" value={provider} onChange={(event) => setProvider(event.target.value)}>
             <option value="developers.events">developers.events</option>
             <option value="bluesky">Bluesky public search</option>
+            <option value="ocg">CNCF / Open Community Groups</option>
           </select>
         </label>
-        <label>Connector name<input name="name" placeholder={provider === "bluesky" ? "Platform engineering pain points" : "Developer events discovery"} required /></label>
+        <label>Connector name<input name="name" placeholder={placeholder} required /></label>
       </div>
 
-      {provider === "bluesky" ? (
+      {provider === "bluesky" && (
         <>
           <label>Search query<input name="query" placeholder='"platform engineering" kubernetes' required /></label>
           <div className="form-grid-two">
@@ -88,7 +98,24 @@ export function ConnectorForm() {
           </div>
           <p className="policy-note">Bluesky search uses the public AppView. DevRelOS stores normalized evidence and provenance by default rather than treating public posts as a relicensable content corpus.</p>
         </>
-      ) : (
+      )}
+
+      {provider === "ocg" && (
+        <>
+          <div className="form-grid-three">
+            <label>Search query<input name="query" placeholder="platform engineering" /></label>
+            <label>Region<input name="region" placeholder="Optional OCG region" /></label>
+            <label>Group category<input name="groupCategory" placeholder="Optional category" /></label>
+          </div>
+          <div className="form-grid-two">
+            <label>Desired topics<input name="topics" placeholder="platform-engineering, kubernetes, devex" /></label>
+            <label>Maximum groups per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="50" /></label>
+          </div>
+          <p className="policy-note">This connector uses OCG&apos;s public JSON group-search endpoint and defaults to the CNCF community. Discovered groups are upserted into the Community pipeline with source provenance.</p>
+        </>
+      )}
+
+      {provider === "developers.events" && (
         <>
           <div className="form-grid-two">
             <label>Usage mode
