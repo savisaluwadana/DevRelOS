@@ -92,9 +92,11 @@ func (a *api) updateContentAsset(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "invalid content status transition"})
 		return
 	}
-	if input.Status != nil && *input.Status == "published" && input.PublishedURL == nil && strings.TrimSpace(current.PublishedURL) == "" {
-		writeBadRequest(w, "publishedUrl is required before marking an asset published")
-		return
+	if input.Status != nil && *input.Status == "published" && strings.TrimSpace(current.PublishedURL) == "" {
+		if input.PublishedURL == nil || strings.TrimSpace(*input.PublishedURL) == "" {
+			writeBadRequest(w, "publishedUrl is required before marking an asset published")
+			return
+		}
 	}
 	updated, err := a.store.UpdateContentAsset(r.Context(), projectID, current.ID, input)
 	if err != nil {
