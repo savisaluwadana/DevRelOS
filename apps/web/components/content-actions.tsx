@@ -2,9 +2,9 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { ContentAsset, ContentChannel, ContentStatus } from "@/lib/content-api";
-import { contentChannelLabels } from "@/lib/content-api";
-import type { WorkItem, WorkItemKind } from "@/lib/work-api";
+import type { ContentAsset, ContentChannel, ContentStatus } from "@/lib/content-shared";
+import { contentChannelLabels } from "@/lib/content-shared";
+import type { WorkItem, WorkItemKind } from "@/lib/work-shared";
 
 const apiURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
