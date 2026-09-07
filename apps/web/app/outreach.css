@@ -1,0 +1,37 @@
+.outreach-page { display: flex; flex-direction: column; gap: 10px; }
+.outreach-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: start; }
+.outreach-form-body { padding: 16px; border-top: 1px solid var(--line); }
+.outreach-draft-panel { overflow: visible; }
+.relationship-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: start; }
+.touchpoint-list { border-top: 1px solid var(--line); }
+.touchpoint-item { padding: 13px 16px; border-bottom: 1px solid #1d222a; display: flex; flex-direction: column; gap: 7px; }
+.touchpoint-item:last-child { border-bottom: 0; }
+.touchpoint-item > div { display: flex; gap: 7px; align-items: center; }
+.touchpoint-item strong { font-size: 11px; line-height: 1.45; }
+.touchpoint-item > span { color: var(--muted); font-size: 9px; }
+.direction-label { color: #788291; font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+.due-cell { color: var(--danger); font-weight: 700; }
+.outreach-card-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 0 12px 12px; }
+.outreach-card { border: 1px solid #252c35; border-radius: 10px; background: #141820; padding: 14px; min-width: 0; }
+.outreach-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.outreach-card h3 { margin: 5px 0 0; font-size: 14px; letter-spacing: -0.02em; }
+.outreach-target { margin-top: 11px; color: var(--accent-2); font-size: 9px; }
+.outreach-card > p { color: #aeb6c2; font-size: 11px; line-height: 1.65; white-space: pre-wrap; }
+.rationale { border-top: 1px solid #252c35; padding-top: 10px; margin-top: 10px; }
+.rationale strong { display: block; color: #828c99; font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+.rationale span { display: block; color: var(--muted); font-size: 10px; line-height: 1.5; margin-top: 5px; }
+.outreach-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 13px; }
+.small-button { padding: 6px 9px; font-size: 9px; }
+.approval-pill { background: #211c10; color: #e5c46c; border: 1px solid #493d20; }
+
+@media (max-width: 1180px) {
+  .outreach-form-grid { grid-template-columns: 1fr 1fr; }
+  .outreach-form-grid > :last-child { grid-column: 1 / -1; }
+  .relationship-grid { grid-template-columns: 1fr; }
+  .relationship-grid .span-two { grid-column: auto; }
+}
+
+@media (max-width: 760px) {
+  .outreach-form-grid, .outreach-card-list { grid-template-columns: 1fr; }
+  .outreach-form-grid > :last-child { grid-column: auto; }
+}
