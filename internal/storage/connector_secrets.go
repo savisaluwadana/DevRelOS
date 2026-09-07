@@ -9,6 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+var ErrSecretInUse = errors.New("secret is still attached to one or more connectors")
+
 func (s *Store) ListConnectorSecrets(ctx context.Context, workspaceID string) ([]domain.Secret, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, workspace_id::text, provider, name, key_version,
@@ -82,7 +84,7 @@ func (s *Store) DeleteConnectorSecret(ctx context.Context, workspaceID, secretID
 		return err
 	}
 	if references > 0 {
-		return errors.New("secret is still attached to one or more connectors")
+		return ErrSecretInUse
 	}
 	command, err := s.pool.Exec(ctx, `DELETE FROM connector_secrets WHERE id=$1 AND workspace_id=$2`, secretID, workspaceID)
 	if err != nil {
