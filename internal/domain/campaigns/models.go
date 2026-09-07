@@ -39,22 +39,23 @@ type Metric struct {
 }
 
 type Report struct {
-	Campaign           Campaign           `json:"campaign"`
-	LinkedByType       map[string]int      `json:"linkedByType"`
-	SpendUSD           float64             `json:"spendUsd"`
-	BudgetRemainingUSD float64             `json:"budgetRemainingUsd"`
-	PublishedContent   int                 `json:"publishedContent"`
-	CompletedWork      int                 `json:"completedWork"`
-	OutreachSent       int                 `json:"outreachSent"`
-	OutreachReplies    int                 `json:"outreachReplies"`
-	ReplyRate          float64             `json:"replyRate"`
-	Submissions        int                 `json:"submissions"`
-	AcceptedTalks      int                 `json:"acceptedTalks"`
-	AcceptanceRate     float64             `json:"acceptanceRate"`
-	FeedbackShipped    int                 `json:"feedbackShipped"`
-	OutcomeScore       int                 `json:"outcomeScore"`
-	Metrics            map[string]float64  `json:"metrics"`
-	RecentMetrics      []Metric            `json:"recentMetrics"`
+	Campaign           Campaign          `json:"campaign"`
+	Items              []Item            `json:"items"`
+	LinkedByType       map[string]int     `json:"linkedByType"`
+	SpendUSD           float64            `json:"spendUsd"`
+	BudgetRemainingUSD float64            `json:"budgetRemainingUsd"`
+	PublishedContent   int                `json:"publishedContent"`
+	CompletedWork      int                `json:"completedWork"`
+	OutreachSent       int                `json:"outreachSent"`
+	OutreachReplies    int                `json:"outreachReplies"`
+	ReplyRate          float64            `json:"replyRate"`
+	Submissions        int                `json:"submissions"`
+	AcceptedTalks      int                `json:"acceptedTalks"`
+	AcceptanceRate     float64            `json:"acceptanceRate"`
+	FeedbackShipped    int                `json:"feedbackShipped"`
+	OutcomeScore       int                `json:"outcomeScore"`
+	Metrics            map[string]float64 `json:"metrics"`
+	RecentMetrics      []Metric           `json:"recentMetrics"`
 }
 
 type RelationshipRadarItem struct {
