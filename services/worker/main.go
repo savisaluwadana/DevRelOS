@@ -14,9 +14,11 @@ import (
 
 	connectorruntime "github.com/savisaluwadana/DevRelOS/internal/connectors"
 	connectordomain "github.com/savisaluwadana/DevRelOS/internal/domain/connectors"
+	eventdomain "github.com/savisaluwadana/DevRelOS/internal/domain/events"
 	signaldomain "github.com/savisaluwadana/DevRelOS/internal/domain/signals"
 	"github.com/savisaluwadana/DevRelOS/internal/providers/bluesky"
 	developersevents "github.com/savisaluwadana/DevRelOS/internal/providers/developersevents"
+	"github.com/savisaluwadana/DevRelOS/internal/providers/ocg"
 	"github.com/savisaluwadana/DevRelOS/internal/storage"
 )
 
@@ -33,6 +35,7 @@ func main() {
 	registry := connectorruntime.NewRegistry(
 		developersevents.New(),
 		bluesky.New(),
+		ocg.New(),
 	)
 	log.Printf("DevRelOS worker started with %d provider(s)", len(registry.Providers()))
 
@@ -135,6 +138,18 @@ func processNext(ctx context.Context, store *storage.Store, registry *connectorr
 
 	projectID := stringValue(connector.Config, "project_id")
 	projectResolved := projectID != ""
+	resolveProject := func() (string, error) {
+		if projectResolved {
+			return projectID, nil
+		}
+		resolved, resolveErr := store.DefaultProjectIDForWorkspace(ctx, connector.WorkspaceID)
+		if resolveErr != nil {
+			return "", resolveErr
+		}
+		projectID = resolved
+		projectResolved = true
+		return projectID, nil
+	}
 
 	for _, record := range result.Records {
 		payloadJSON, marshalErr := json.Marshal(record.Payload)
@@ -178,22 +193,19 @@ func processNext(ctx context.Context, store *storage.Store, registry *connectorr
 			run.ItemsUpdated++
 		}
 
-		if record.Normalized.Kind == "signal" {
-			if !projectResolved {
-				resolved, resolveErr := store.DefaultProjectIDForWorkspace(ctx, connector.WorkspaceID)
-				if resolveErr != nil {
-					run.Warnings = append(run.Warnings, fmt.Sprintf("source %s stored but signal project could not be resolved", record.ExternalID))
-					continue
-				}
-				projectID = resolved
-				projectResolved = true
+		switch record.Normalized.Kind {
+		case "signal":
+			resolvedProjectID, resolveErr := resolveProject()
+			if resolveErr != nil {
+				run.Warnings = append(run.Warnings, fmt.Sprintf("source %s stored but signal project could not be resolved", record.ExternalID))
+				continue
 			}
 			if record.Normalized.Title == "" && record.Normalized.Body == "" {
 				run.Warnings = append(run.Warnings, fmt.Sprintf("source %s has empty normalized signal content", record.ExternalID))
 				continue
 			}
 			_, signalErr := store.CreateSignal(ctx, signaldomain.Signal{
-				ProjectID:       projectID,
+				ProjectID:       resolvedProjectID,
 				SourceRecordID:  sourceRecord.ID,
 				Provider:        connector.Provider,
 				ExternalID:      record.ExternalID,
@@ -209,6 +221,32 @@ func processNext(ctx context.Context, store *storage.Store, registry *connectorr
 			})
 			if signalErr != nil {
 				run.Warnings = append(run.Warnings, fmt.Sprintf("source %s stored but signal upsert failed", record.ExternalID))
+			}
+		case "community":
+			resolvedProjectID, resolveErr := resolveProject()
+			if resolveErr != nil {
+				run.Warnings = append(run.Warnings, fmt.Sprintf("source %s stored but community project could not be resolved", record.ExternalID))
+				continue
+			}
+			if record.Normalized.Name == "" {
+				run.Warnings = append(run.Warnings, fmt.Sprintf("source %s has empty normalized community name", record.ExternalID))
+				continue
+			}
+			_, _, communityErr := store.UpsertCommunity(ctx, eventdomain.Community{
+				ProjectID:        resolvedProjectID,
+				Name:             record.Normalized.Name,
+				Platform:         record.Normalized.Platform,
+				ExternalID:       record.ExternalID,
+				WebsiteURL:       record.CanonicalURL,
+				City:             record.Normalized.City,
+				Country:          record.Normalized.Country,
+				Topics:           record.Normalized.Topics,
+				ActivityScore:    record.Normalized.ActivityScore,
+				SpeakingFitScore: record.Normalized.SpeakingFitScore,
+				Status:           "discovered",
+			}, sourceRecord.ID)
+			if communityErr != nil {
+				run.Warnings = append(run.Warnings, fmt.Sprintf("source %s stored but community upsert failed", record.ExternalID))
 			}
 		}
 	}
