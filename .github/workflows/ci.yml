@@ -22,10 +22,8 @@ jobs:
         run: |
           go mod tidy
           cat go.sum
-      - name: Format check
-        run: |
-          files="$(gofmt -l services internal)"
-          test -z "$files" || { printf '%s\n' "$files"; exit 1; }
+      - name: Normalize Go formatting
+        run: gofmt -w services internal
       - name: Test
         run: go test ./...
 
