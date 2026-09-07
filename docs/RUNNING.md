@@ -5,11 +5,13 @@
 Prerequisites:
 
 - Docker with Compose v2
-- ports 3000, 5432 and 8080 available
+- port 3000 available
+- ports 5432 and 8080 available on localhost if you want direct database/API access
 
-Start the complete beta stack:
+Start the complete stack:
 
 ```bash
+cp .env.example .env
 make up
 ```
 
@@ -18,7 +20,8 @@ This starts PostgreSQL, applies every unapplied SQL migration, starts the Go API
 Open:
 
 - Web: http://localhost:3000
-- API health: http://localhost:8080/healthz
+- API liveness: http://localhost:8080/healthz
+- API readiness: http://localhost:8080/readyz
 
 Useful commands:
 
@@ -27,6 +30,38 @@ make ps
 make logs
 make down
 ```
+
+PostgreSQL and the Go API are bound to `127.0.0.1` by the default Compose file. The web service is the intended operator entry point.
+
+## Secure operator mode
+
+Authentication is optional for local development. To require authentication on the Go API, set a long random token in `.env` or inject it from a secret manager:
+
+```text
+DEVRELOS_API_TOKEN=<secret>
+DEVRELOS_REQUIRE_AUTH=true
+```
+
+The Go API then requires:
+
+```text
+Authorization: Bearer <secret>
+```
+
+for `/api/v1/*`. `/healthz` and `/readyz` remain public for container/orchestrator probes.
+
+Browser traffic does not receive the bearer token. Client-side actions call the same-origin path `/api/devrelos/...`; the Next.js route handler forwards the request to the internal Go API and adds `DEVRELOS_API_TOKEN` on the server.
+
+For a small shared operator deployment, the web console can also be protected with Basic authentication:
+
+```text
+DEVRELOS_WEB_USERNAME=<operator name>
+DEVRELOS_WEB_PASSWORD=<strong password>
+```
+
+Both values must be set for this gate to activate. This is an operator-mode protection layer, not the final multi-user identity/RBAC system.
+
+Use TLS and a trusted reverse proxy before exposing the web service outside a trusted host/network. See [SECURITY.md](SECURITY.md).
 
 ## Media Studio
 
@@ -44,7 +79,7 @@ When creating a Media Studio asset, use a relative source path such as:
 recordings/community-call.mp4
 ```
 
-DevRelOS will only allow the worker to resolve paths inside `DEVRELOS_MEDIA_ROOT`. Approved clips are rendered by FFmpeg into:
+DevRelOS only allows the worker to resolve paths inside `DEVRELOS_MEDIA_ROOT`. Approved clips are rendered by FFmpeg into:
 
 ```text
 data/media/outputs/
@@ -56,24 +91,26 @@ Transcripts can be imported manually through Media Studio. A Whisper-compatible 
 
 ## GitHub connectors
 
-For authenticated GitHub Issues, Releases or Discussions monitoring, export a token before starting Compose:
+For authenticated GitHub Issues, Releases or Discussions monitoring, provide the provider credential to the worker environment before starting Compose:
 
 ```bash
 export GITHUB_TOKEN=...
 make up
 ```
 
-Connector configuration stores only the environment-variable name, not the secret value.
+Connector configuration stores the environment-variable reference rather than copying the secret into connector configuration.
 
 ## MCP
 
-The MCP server is a stdio process intended for local IDE/agent clients:
+The MCP server is a stdio process intended for local IDE/agent clients. When API auth is enabled, provide the same API token to the MCP process:
 
 ```bash
-DEVRELOS_API_URL=http://localhost:8080 go run ./services/mcp
+DEVRELOS_API_URL=http://localhost:8080 \
+DEVRELOS_API_TOKEN="$DEVRELOS_API_TOKEN" \
+go run ./services/mcp
 ```
 
-See [MCP.md](MCP.md) for the tool catalog and client configuration guidance.
+The MCP process forwards the bearer token and does not persist it. See [MCP.md](MCP.md) for the tool catalog and client configuration guidance.
 
 ## Local development without full Compose
 
@@ -98,6 +135,8 @@ make worker
 make web
 ```
 
-## Current beta boundary
+For native Next.js development, `DEVRELOS_API_URL` should point at the native Go API and `NEXT_PUBLIC_API_URL` should remain `/api/devrelos` so browser mutations continue through the Next.js proxy.
 
-The Docker Compose path is intended for local/self-hosted beta operation. It does not yet include multi-user login/session management, production TLS termination, managed secrets, remote object storage, or horizontal worker orchestration. Do not expose the current beta API directly to the public internet without adding an authenticated reverse proxy or the planned application auth layer.
+## Current production boundary
+
+Secure operator mode gives DevRelOS a real authenticated service boundary and server-enforced project/workspace scoping, but it is not yet a complete multi-user SaaS security model. It still needs user sessions, workspace membership/RBAC, encrypted connector secret storage, managed TLS/reverse-proxy templates, remote object storage, backup/restore, and horizontal worker coordination before broad internet-facing production use.
