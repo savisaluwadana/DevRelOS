@@ -127,7 +127,16 @@ export function TouchpointForm({ relationships }: { relationships: Relationship[
   );
 }
 
-export function OutreachDraftForm({ communities, contacts, talks }: { communities: Community[]; contacts: Contact[]; talks: Talk[] }) {
+type OutreachDraftFormProps = {
+  communities: Community[];
+  contacts: Contact[];
+  talks: Talk[];
+  defaultCommunityId?: string;
+  defaultTalkId?: string;
+  defaultRationale?: string;
+};
+
+export function OutreachDraftForm({ communities, contacts, talks, defaultCommunityId = "", defaultTalkId = "", defaultRationale = "" }: OutreachDraftFormProps) {
   const router = useRouter(); const [busy, setBusy] = useState(false); const [message, setMessage] = useState("");
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); setBusy(true); setMessage("");
@@ -144,13 +153,13 @@ export function OutreachDraftForm({ communities, contacts, talks }: { communitie
   return (
     <form className="operator-form" onSubmit={submit}>
       <div className="form-grid-three">
-        <label>Community<select name="communityId" defaultValue=""><option value="">None</option>{communities.filter((item) => item.status !== "do_not_contact").map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <label>Community<select name="communityId" defaultValue={defaultCommunityId}><option value="">None</option>{communities.filter((item) => item.status !== "do_not_contact").map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <label>Contact<select name="contactId" defaultValue=""><option value="">None</option>{contacts.filter((item) => !item.doNotContact).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-        <label>Talk<select name="talkId" defaultValue=""><option value="">No talk attached</option>{talks.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
+        <label>Talk<select name="talkId" defaultValue={defaultTalkId}><option value="">No talk attached</option>{talks.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
       </div>
       <div className="form-grid-two"><label>Channel<select name="channel" defaultValue="email"><option value="email">Email</option><option value="linkedin">LinkedIn</option><option value="slack">Slack / community</option></select></label><label>Subject<input name="subject" placeholder="Talk proposal for your community" /></label></div>
       <label>Message<textarea name="body" rows={6} required placeholder="Personalized outreach draft…" /></label>
-      <label>Why this recipient / community?<textarea name="rationale" rows={2} placeholder="Fit evidence shown to the approver." /></label>
+      <label>Why this recipient / community?<textarea name="rationale" rows={2} defaultValue={defaultRationale} placeholder="Fit evidence shown to the approver." /></label>
       <div className="form-action-row"><button className="button primary" disabled={busy}>{busy ? "Creating…" : "Create for approval"}</button><FormResult message={message} /></div>
     </form>
   );
