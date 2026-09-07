@@ -37,13 +37,19 @@ type FetchRequest struct {
 }
 
 type NormalizedRecord struct {
-	Kind            string   `json:"kind"`
-	Title           string   `json:"title"`
-	Body            string   `json:"body"`
-	AuthorHandle    string   `json:"authorHandle"`
-	AuthorName      string   `json:"authorName"`
-	Topics          []string `json:"topics"`
-	EngagementScore int      `json:"engagementScore"`
+	Kind             string   `json:"kind"`
+	Title            string   `json:"title"`
+	Body             string   `json:"body"`
+	AuthorHandle     string   `json:"authorHandle"`
+	AuthorName       string   `json:"authorName"`
+	Name             string   `json:"name"`
+	Platform         string   `json:"platform"`
+	City             string   `json:"city"`
+	Country          string   `json:"country"`
+	Topics           []string `json:"topics"`
+	EngagementScore  int      `json:"engagementScore"`
+	ActivityScore    *int     `json:"activityScore,omitempty"`
+	SpeakingFitScore *int     `json:"speakingFitScore,omitempty"`
 }
 
 type RawRecord struct {
