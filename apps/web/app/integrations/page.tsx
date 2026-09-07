@@ -65,11 +65,14 @@ export default async function IntegrationsPage() {
       </section>
 
       <section className="panel provider-roadmap">
-        <div className="panel-head"><div><span className="eyebrow">Provider roadmap</span><h2>Next adapters</h2></div></div>
-        <div className="provider-row"><strong>CNCF / Open Community Groups</strong><span>Community directory, events and organizer relationship enrichment after the public data surface is finalized.</span></div>
-        <div className="provider-row"><strong>GitHub</strong><span>Issues, discussions, releases and contribution signals.</span></div>
-        <div className="provider-row"><strong>Bluesky</strong><span>Public developer conversations and topic streams.</span></div>
-        <div className="provider-row"><strong>Reddit / X</strong><span>API-approved and budget-controlled integrations only.</span></div>
+        <div className="panel-head"><div><span className="eyebrow">Source catalog</span><h2>Available and planned adapters</h2></div></div>
+        <div className="provider-row"><strong>GitHub Issues · available</strong><span>Repository issue pain points, labels, reactions and discussion volume with optional token-env authentication.</span></div>
+        <div className="provider-row"><strong>Hacker News · available</strong><span>Bounded keyword monitoring across new, top, best, Ask HN and Show HN feeds.</span></div>
+        <div className="provider-row"><strong>RSS / Atom · available</strong><span>HTTPS blog, release and community feeds through an SSRF-safe fetch path.</span></div>
+        <div className="provider-row"><strong>CNCF / Open Community Groups · available</strong><span>Public community directory discovery; organizer-detail enrichment remains a separate stage.</span></div>
+        <div className="provider-row"><strong>Bluesky · available</strong><span>Public developer conversations and topic search.</span></div>
+        <div className="provider-row"><strong>GitHub Discussions · planned</strong><span>Repository discussions and community Q&amp;A once the issue-source tranche is proven in production.</span></div>
+        <div className="provider-row"><strong>Reddit / X · planned</strong><span>API-approved and budget-controlled integrations only.</span></div>
       </section>
     </div>
   );
