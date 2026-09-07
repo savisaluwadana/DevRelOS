@@ -4,9 +4,10 @@ CREATE TABLE users (
   display_name TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','disabled')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (lower(email))
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE UNIQUE INDEX users_email_lower_unique_idx ON users(lower(email));
 
 CREATE TABLE workspace_memberships (
   workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
