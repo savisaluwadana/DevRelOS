@@ -89,7 +89,6 @@ func (s *Store) ListMediaClips(ctx context.Context, projectID, mediaAssetID stri
 func (s *Store) CreateMediaClip(ctx context.Context, item mediadomain.Clip) (mediadomain.Clip, error) {
 	if item.AspectRatio == "" { item.AspectRatio = "9:16" }
 	if item.Status == "" { item.Status = "candidate" }
-	if item.Score == 0 { item.Score = 50 }
 	if item.Metadata == nil { item.Metadata = map[string]any{} }
 	metadata, err := json.Marshal(item.Metadata); if err != nil { return item, err }
 	err = s.pool.QueryRow(ctx, `
