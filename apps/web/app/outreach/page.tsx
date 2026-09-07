@@ -2,12 +2,18 @@ import { ContactForm, OutreachActions, OutreachDraftForm, RelationshipForm, Touc
 import { formatDateTime } from "@/lib/api";
 import { getOutreachData } from "@/lib/outreach-api";
 
-export default async function OutreachPage() {
+type OutreachPageProps = {
+  searchParams: Promise<{ communityId?: string; talkId?: string; score?: string }>;
+};
+
+export default async function OutreachPage({ searchParams }: OutreachPageProps) {
   const data = await getOutreachData();
+  const params = await searchParams;
   const now = Date.now();
   const followUpsDue = data.relationships.filter((item) => item.nextFollowUpAt && new Date(item.nextFollowUpAt).getTime() <= now).length;
   const approvalQueue = data.outreach.filter((item) => item.status === "needs_approval").length;
   const replies = data.outreach.filter((item) => item.status === "replied").length;
+  const defaultRationale = params.score ? `DevRelOS speaking opportunity score: ${params.score}/100. Review the score breakdown and personalize the message before requesting approval.` : "";
 
   return (
     <div className="page-wrap outreach-page">
@@ -17,7 +23,7 @@ export default async function OutreachPage() {
           <h1>Turn relevant communities into durable speaking relationships.</h1>
           <p>Track organizers, relationship warmth, touchpoints, follow-ups and approval-gated speaking outreach without turning DevRelOS into a mass-email tool.</p>
         </div>
-        <a className="button ghost" href="/manage#communities">Community pipeline →</a>
+        <a className="button ghost" href="/opportunities">Speaking opportunities →</a>
       </header>
 
       {!data.connected && <div className="notice"><strong>Outreach API is not connected.</strong><span>Start PostgreSQL and the Go API to use relationship workflows.</span></div>}
@@ -37,7 +43,7 @@ export default async function OutreachPage() {
 
       <section className="panel outreach-draft-panel">
         <div className="panel-head"><div><span className="eyebrow">Speaking Outreach</span><h2>Create an approval-gated pitch</h2></div><span className="muted panel-note">No autonomous send action is exposed.</span></div>
-        <div className="outreach-form-body"><OutreachDraftForm communities={data.communities} contacts={data.contacts} talks={data.talks} /></div>
+        <div className="outreach-form-body"><OutreachDraftForm communities={data.communities} contacts={data.contacts} talks={data.talks} defaultCommunityId={params.communityId ?? ""} defaultTalkId={params.talkId ?? ""} defaultRationale={defaultRationale} /></div>
       </section>
 
       <section className="relationship-grid">
