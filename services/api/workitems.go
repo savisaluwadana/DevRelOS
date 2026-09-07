@@ -14,6 +14,7 @@ func (a *api) registerWorkItemRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/work-items", a.createWorkItem)
 	mux.HandleFunc("PATCH /api/v1/work-items/{id}/status", a.updateWorkItemStatus)
 	mux.HandleFunc("POST /api/v1/pain-points/{id}/work-items", a.createWorkItemFromPainPoint)
+	a.registerContentRoutes(mux)
 }
 
 func (a *api) listWorkItems(w http.ResponseWriter, r *http.Request) {
