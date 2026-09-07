@@ -1,3 +1,4 @@
+import { CampaignAttribution } from "@/components/campaign-attribution";
 import { WorkToContentAction } from "@/components/content-actions";
 import { WorkItemActions, WorkItemForm } from "@/components/work-actions";
 import { formatDateTime } from "@/lib/api";
@@ -64,6 +65,7 @@ export default async function WorkPage() {
                 </div>
                 <aside className="work-card-side">
                   {item.sourceType === "pain_point" && item.sourceId ? <a className="button ghost" href="/signals">View source evidence →</a> : null}
+                  <CampaignAttribution entityType="work_item" entityId={item.id} />
                   <WorkToContentAction item={item} />
                   <WorkItemActions item={item} />
                 </aside>
