@@ -26,6 +26,9 @@
 .record-row:last-child { border-bottom: 0; }
 .record-row strong { display: block; color: #f3f5f8; font-size: 12px; }
 .record-row span:not(.pill):not(.score) { display: block; margin-top: 3px; color: #7d8794; font-size: 10px; }
+.status-select { min-width: 118px; border: 1px solid #2b323c; border-radius: 8px; background: #171c23; color: #a7b0bd; padding: 6px 8px; font-size: 9px; text-transform: uppercase; letter-spacing: .04em; outline: none; }
+.status-select.accepted { border-color: #234332; background: #13221c; color: var(--accent); }
+.status-select:disabled { opacity: .55; }
 .cfp-panel { margin-top: 0; }
 
 @media (max-width: 900px) {
