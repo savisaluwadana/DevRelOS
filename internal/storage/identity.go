@@ -23,10 +23,72 @@ func (s *Store) CreateUser(ctx context.Context, user domain.User) (domain.User, 
 	return user, err
 }
 
+func (s *Store) CreateWorkspaceUser(ctx context.Context, workspaceID string, user domain.User, role string) (domain.User, error) {
+	if user.Status == "" {
+		user.Status = "active"
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return user, err
+	}
+	defer tx.Rollback(ctx)
+
+	err = tx.QueryRow(ctx, `
+		INSERT INTO users (email, display_name, status)
+		VALUES (lower($1), $2, $3)
+		ON CONFLICT DO NOTHING
+		RETURNING id::text, email, display_name, status, created_at, updated_at`,
+		user.Email, user.DisplayName, user.Status).
+		Scan(&user.ID, &user.Email, &user.DisplayName, &user.Status, &user.CreatedAt, &user.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		err = tx.QueryRow(ctx, `
+			SELECT id::text, email, display_name, status, created_at, updated_at
+			FROM users WHERE lower(email)=lower($1)`, user.Email).
+			Scan(&user.ID, &user.Email, &user.DisplayName, &user.Status, &user.CreatedAt, &user.UpdatedAt)
+	}
+	if err != nil {
+		return user, err
+	}
+
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO workspace_memberships (workspace_id, user_id, role)
+		VALUES ($1,$2,$3)
+		ON CONFLICT (workspace_id, user_id)
+		DO UPDATE SET role=EXCLUDED.role, updated_at=now()`, workspaceID, user.ID, role); err != nil {
+		return user, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return user, err
+	}
+	return user, nil
+}
+
 func (s *Store) ListUsers(ctx context.Context) ([]domain.User, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, email, display_name, status, created_at, updated_at
 		FROM users ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]domain.User, 0)
+	for rows.Next() {
+		var item domain.User
+		if err := rows.Scan(&item.ID, &item.Email, &item.DisplayName, &item.Status, &item.CreatedAt, &item.UpdatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (s *Store) ListWorkspaceUsers(ctx context.Context, workspaceID string) ([]domain.User, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT u.id::text, u.email, u.display_name, u.status, u.created_at, u.updated_at
+		FROM users u
+		JOIN workspace_memberships m ON m.user_id=u.id
+		WHERE m.workspace_id=$1
+		ORDER BY u.email`, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -149,31 +211,35 @@ func (s *Store) RevokeAPIKey(ctx context.Context, userID, keyID string) error {
 	return nil
 }
 
-func (s *Store) AppendAuditEvent(ctx context.Context, item domain.AuditEvent) error {
-	if item.Metadata == nil {
-		item.Metadata = map[string]any{}
+func (s *Store) AppendAuditEvent(ctx context.Context, event domain.AuditEvent) error {
+	if event.Metadata == nil {
+		event.Metadata = map[string]any{}
 	}
-	metadata, err := json.Marshal(item.Metadata)
+	metadata, err := json.Marshal(event.Metadata)
 	if err != nil {
 		return err
 	}
 	_, err = s.pool.Exec(ctx, `
 		INSERT INTO audit_events (workspace_id, actor_user_id, actor_kind, action, resource_type, resource_id, metadata)
-		VALUES (NULLIF($1,'')::uuid,NULLIF($2,'')::uuid,$3,$4,$5,$6,$7::jsonb)`,
-		item.WorkspaceID, item.ActorUserID, item.ActorKind, item.Action, item.ResourceType, item.ResourceID, metadata)
+		VALUES (NULLIF($1,'')::uuid, NULLIF($2,'')::uuid, $3,$4,$5,$6,$7::jsonb)`,
+		event.WorkspaceID, event.ActorUserID, event.ActorKind, event.Action, event.ResourceType, event.ResourceID, metadata)
 	return err
 }
 
 func (s *Store) ListAuditEvents(ctx context.Context, workspaceID string, limit int) ([]domain.AuditEvent, error) {
-	if limit <= 0 || limit > 500 {
+	if limit < 1 {
 		limit = 100
 	}
+	if limit > 500 {
+		limit = 500
+	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT id::text, COALESCE(workspace_id::text,''), COALESCE(actor_user_id::text,''), actor_kind,
-		       action, resource_type, resource_id, metadata, created_at
-		FROM audit_events
-		WHERE workspace_id=$1
-		ORDER BY created_at DESC LIMIT $2`, workspaceID, limit)
+		SELECT a.id::text, COALESCE(a.workspace_id::text,''), COALESCE(a.actor_user_id::text,''), a.actor_kind,
+		       COALESCE(u.email,''), a.action, a.resource_type, a.resource_id, a.metadata, a.created_at
+		FROM audit_events a
+		LEFT JOIN users u ON u.id=a.actor_user_id
+		WHERE a.workspace_id=$1 OR a.workspace_id IS NULL
+		ORDER BY a.created_at DESC LIMIT $2`, workspaceID, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -181,16 +247,19 @@ func (s *Store) ListAuditEvents(ctx context.Context, workspaceID string, limit i
 	items := make([]domain.AuditEvent, 0)
 	for rows.Next() {
 		var item domain.AuditEvent
-		var metadata []byte
-		if err := rows.Scan(&item.ID, &item.WorkspaceID, &item.ActorUserID, &item.ActorKind, &item.Action,
-			&item.ResourceType, &item.ResourceID, &metadata, &item.CreatedAt); err != nil {
+		var raw []byte
+		if err := rows.Scan(&item.ID, &item.WorkspaceID, &item.ActorUserID, &item.ActorKind, &item.ActorEmail,
+			&item.Action, &item.ResourceType, &item.ResourceID, &raw, &item.CreatedAt); err != nil {
 			return nil, err
 		}
-		item.Metadata = map[string]any{}
-		_ = json.Unmarshal(metadata, &item.Metadata)
+		if len(raw) > 0 {
+			if err := json.Unmarshal(raw, &item.Metadata); err != nil {
+				return nil, err
+			}
+		}
 		items = append(items, item)
 	}
 	return items, rows.Err()
 }
 
-func IsNotFound(err error) bool { return errors.Is(err, pgx.ErrNoRows) }
+var _ = errors.Is
