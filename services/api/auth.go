@@ -81,8 +81,8 @@ func (a *api) withAuth(next http.Handler) http.Handler {
 			hash := sha256.Sum256([]byte(token))
 			principal, err := a.store.ResolveAPIKey(r.Context(), hex.EncodeToString(hash[:]))
 			if err == nil && principal.Status == "active" {
-				workspaceID, scopeErr := a.requestWorkspaceID(r)
-				if scopeErr != nil { writeUnauthorized(w); return }
+				workspaceID, scopeErr := a.apiKeyWorkspace(r, principal.UserID)
+				if scopeErr != nil { writeForbidden(w); return }
 				role, roleErr := a.store.RoleForWorkspace(r.Context(), principal.UserID, workspaceID)
 				if roleErr != nil || roleRank(role) == 0 { writeForbidden(w); return }
 				if isMutation(r.Method) && roleRank(role) < roleRank("editor") {
@@ -100,6 +100,19 @@ func (a *api) withAuth(next http.Handler) http.Handler {
 
 		writeUnauthorized(w)
 	})
+}
+
+func (a *api) apiKeyWorkspace(r *http.Request, userID string) (string, error) {
+	if workspaceID := strings.TrimSpace(r.URL.Query().Get("workspaceId")); workspaceID != "" {
+		return workspaceID, nil
+	}
+	if projectID := strings.TrimSpace(r.URL.Query().Get("projectId")); projectID != "" {
+		return a.store.ProjectWorkspaceID(r.Context(), projectID)
+	}
+	items, err := a.store.ListUserWorkspaces(r.Context(), userID)
+	if err != nil { return "", err }
+	if len(items) == 0 { return "", os.ErrNotExist }
+	return items[0].WorkspaceID, nil
 }
 
 func isMutation(method string) bool {
@@ -127,18 +140,10 @@ func (a *api) sessionRequestWithinWorkspace(w http.ResponseWriter, r *http.Reque
 
 func (a *api) requestWorkspaceID(r *http.Request) (string, error) {
 	act := currentActor(r)
-	if act.SessionID != "" && act.WorkspaceID != "" {
-		return act.WorkspaceID, nil
-	}
-	if workspaceID := strings.TrimSpace(r.URL.Query().Get("workspaceId")); workspaceID != "" {
-		return workspaceID, nil
-	}
-	if projectID := strings.TrimSpace(r.URL.Query().Get("projectId")); projectID != "" {
-		return a.store.ProjectWorkspaceID(r.Context(), projectID)
-	}
-	if act.WorkspaceID != "" {
-		return act.WorkspaceID, nil
-	}
+	if act.SessionID != "" && act.WorkspaceID != "" { return act.WorkspaceID, nil }
+	if workspaceID := strings.TrimSpace(r.URL.Query().Get("workspaceId")); workspaceID != "" { return workspaceID, nil }
+	if projectID := strings.TrimSpace(r.URL.Query().Get("projectId")); projectID != "" { return a.store.ProjectWorkspaceID(r.Context(), projectID) }
+	if act.WorkspaceID != "" { return act.WorkspaceID, nil }
 	return a.store.DefaultWorkspaceID(r.Context())
 }
 
