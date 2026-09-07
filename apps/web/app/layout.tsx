@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./manage.css";
 
 export const metadata: Metadata = {
   title: "DevRelOS",
@@ -7,17 +8,17 @@ export const metadata: Metadata = {
 };
 
 const nav = [
-  "Command Center",
-  "Signals",
-  "Events & CFPs",
-  "Communities",
-  "Talk Library",
-  "Outreach",
-  "Content",
-  "Feedback",
-  "Analytics",
-  "Automations",
-  "Integrations"
+  { label: "Command Center", href: "/" },
+  { label: "Signals", href: "/#signals" },
+  { label: "Events & CFPs", href: "/manage#cfps" },
+  { label: "Communities", href: "/manage#communities" },
+  { label: "Talk Library", href: "/manage#talks" },
+  { label: "Outreach", href: "/#outreach" },
+  { label: "Content", href: "/#content" },
+  { label: "Feedback", href: "/#feedback" },
+  { label: "Analytics", href: "/#analytics" },
+  { label: "Automations", href: "/#automations" },
+  { label: "Integrations", href: "/#integrations" }
 ];
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -26,18 +27,18 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <div className="app-shell">
           <aside className="sidebar">
-            <div className="brand">
+            <a className="brand" href="/">
               <div className="brand-mark">DR</div>
               <div>
                 <strong>DevRelOS</strong>
                 <span>Operator Console</span>
               </div>
-            </div>
+            </a>
             <nav className="nav-list" aria-label="Primary">
               {nav.map((item, index) => (
-                <a className={index === 0 ? "nav-item active" : "nav-item"} href="#" key={item}>
+                <a className={index === 0 ? "nav-item active" : "nav-item"} href={item.href} key={item.label}>
                   <span className="nav-dot" />
-                  {item}
+                  {item.label}
                 </a>
               ))}
             </nav>
