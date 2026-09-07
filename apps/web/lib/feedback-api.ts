@@ -1,3 +1,5 @@
+import { serverFetch } from "@/lib/server-api";
+
 export type FeedbackStatus = "new" | "triaged" | "planned" | "in_progress" | "shipped" | "closed" | "wont_fix";
 
 export type FeedbackItem = {
@@ -25,14 +27,9 @@ export type FeedbackItem = {
   updatedAt: string;
 };
 
-const apiURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
-
 export async function getFeedbackItems(): Promise<{ items: FeedbackItem[]; connected: boolean }> {
   try {
-    const response = await fetch(`${apiURL}/api/v1/feedback?limit=300`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(3000)
-    });
+    const response = await serverFetch("/api/v1/feedback?limit=300", { signal: AbortSignal.timeout(3000) });
     if (!response.ok) return { items: [], connected: false };
     return { items: (await response.json()) as FeedbackItem[], connected: true };
   } catch {
