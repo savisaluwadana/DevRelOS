@@ -229,3 +229,8 @@ export function formatDateTime(value?: string) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 }
+
+export function locationLabel(city?: string, country?: string) {
+  const parts = [city, country].map((part) => part?.trim()).filter(Boolean);
+  return parts.length > 0 ? parts.join(", ") : "Remote / online";
+}
