@@ -1,3 +1,4 @@
+import { WorkToContentAction } from "@/components/content-actions";
 import { WorkItemActions, WorkItemForm } from "@/components/work-actions";
 import { formatDateTime } from "@/lib/api";
 import { getWorkItems, workKindLabels } from "@/lib/work-api";
@@ -23,7 +24,7 @@ export default async function WorkPage() {
           <h1>Move developer evidence into execution.</h1>
           <p>Plan content, documentation, product feedback, talks, community research and engineering follow-ups in one traceable queue.</p>
         </div>
-        <a className="button ghost" href="/signals">Find pain points →</a>
+        <div className="topbar-actions"><a className="button ghost" href="/content">Content Studio</a><a className="button ghost" href="/signals">Find pain points →</a></div>
       </header>
 
       {!data.connected && <div className="notice"><strong>Action Queue API is not connected.</strong><span>Apply the latest migrations and start the Go API to use this workspace.</span></div>}
@@ -63,6 +64,7 @@ export default async function WorkPage() {
                 </div>
                 <aside className="work-card-side">
                   {item.sourceType === "pain_point" && item.sourceId ? <a className="button ghost" href="/signals">View source evidence →</a> : null}
+                  <WorkToContentAction item={item} />
                   <WorkItemActions item={item} />
                 </aside>
               </article>
