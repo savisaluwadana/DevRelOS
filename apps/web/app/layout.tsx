@@ -8,6 +8,7 @@ import "./work.css";
 import "./content.css";
 import "./feedback.css";
 import "./media.css";
+import "./identity.css";
 
 export const metadata: Metadata = {
   title: "DevRelOS",
@@ -26,7 +27,9 @@ const nav = [
   { label: "Talk Library", href: "/manage#talks" },
   { label: "Outreach", href: "/outreach" },
   { label: "Feedback", href: "/feedback" },
-  { label: "Integrations", href: "/integrations" }
+  { label: "Integrations", href: "/integrations" },
+  { label: "Team & Roles", href: "/team" },
+  { label: "Account", href: "/account" }
 ];
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -46,7 +49,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 </a>
               ))}
             </nav>
-            <div className="sidebar-footer"><span className="status-dot" />Local workspace</div>
+            <div className="sidebar-footer"><span className="status-dot" />Authenticated workspace</div>
           </aside>
           <main className="main-panel">{children}</main>
         </div>
