@@ -1,3 +1,4 @@
+import { CampaignAttribution } from "@/components/campaign-attribution";
 import { ContactForm, OutreachActions, OutreachDraftForm, RelationshipForm, TouchpointForm } from "@/components/outreach-actions";
 import { formatDateTime } from "@/lib/api";
 import { getOutreachData } from "@/lib/outreach-api";
@@ -67,7 +68,7 @@ export default async function OutreachPage({ searchParams }: OutreachPageProps) 
       </section>
 
       <section className="panel outreach-queue-panel">
-        <div className="panel-head"><div><span className="eyebrow">Approval & Delivery State</span><h2>Outreach queue</h2></div><span className="muted panel-note">Sending is not automated in this tranche.</span></div>
+        <div className="panel-head"><div><span className="eyebrow">Approval & Delivery State</span><h2>Outreach queue</h2></div><span className="muted panel-note">Email sending remains approval-gated; other channels can be tracked manually.</span></div>
         <div className="outreach-card-list">
           {data.outreach.length === 0 ? <p className="empty-copy">No outreach drafts yet.</p> : data.outreach.map((item) => (
             <article className="outreach-card" key={item.id}>
@@ -75,7 +76,10 @@ export default async function OutreachPage({ searchParams }: OutreachPageProps) 
               <div className="outreach-target">{item.communityName || "No community"}{item.contactName ? ` · ${item.contactName}` : ""}{item.talkTitle ? ` · ${item.talkTitle}` : ""}</div>
               <p>{item.body}</p>
               {item.rationale && <div className="rationale"><strong>Selection rationale</strong><span>{item.rationale}</span></div>}
-              <OutreachActions item={item} />
+              <div className="outreach-actions-stack">
+                <CampaignAttribution entityType="outreach" entityId={item.id} channel={item.channel} />
+                <OutreachActions item={item} />
+              </div>
             </article>
           ))}
         </div>
