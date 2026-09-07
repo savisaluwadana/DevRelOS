@@ -64,7 +64,7 @@ func (a *api) withAuth(next http.Handler) http.Handler {
 				if !a.sessionRequestWithinWorkspace(w, r, principal.WorkspaceID) { return }
 				role, roleErr := a.store.RoleForWorkspace(r.Context(), principal.UserID, principal.WorkspaceID)
 				if roleErr != nil || roleRank(role) == 0 { writeForbidden(w); return }
-				if isMutation(r.Method) && roleRank(role) < roleRank("editor") {
+				if requiresEditor(r) && roleRank(role) < roleRank("editor") {
 					writeJSON(w, http.StatusForbidden, map[string]string{"error": "editor role required"})
 					return
 				}
@@ -85,7 +85,7 @@ func (a *api) withAuth(next http.Handler) http.Handler {
 				if scopeErr != nil { writeForbidden(w); return }
 				role, roleErr := a.store.RoleForWorkspace(r.Context(), principal.UserID, workspaceID)
 				if roleErr != nil || roleRank(role) == 0 { writeForbidden(w); return }
-				if isMutation(r.Method) && roleRank(role) < roleRank("editor") {
+				if requiresEditor(r) && roleRank(role) < roleRank("editor") {
 					writeJSON(w, http.StatusForbidden, map[string]string{"error": "editor role required"})
 					return
 				}
@@ -103,12 +103,8 @@ func (a *api) withAuth(next http.Handler) http.Handler {
 }
 
 func (a *api) apiKeyWorkspace(r *http.Request, userID string) (string, error) {
-	if workspaceID := strings.TrimSpace(r.URL.Query().Get("workspaceId")); workspaceID != "" {
-		return workspaceID, nil
-	}
-	if projectID := strings.TrimSpace(r.URL.Query().Get("projectId")); projectID != "" {
-		return a.store.ProjectWorkspaceID(r.Context(), projectID)
-	}
+	if workspaceID := strings.TrimSpace(r.URL.Query().Get("workspaceId")); workspaceID != "" { return workspaceID, nil }
+	if projectID := strings.TrimSpace(r.URL.Query().Get("projectId")); projectID != "" { return a.store.ProjectWorkspaceID(r.Context(), projectID) }
 	items, err := a.store.ListUserWorkspaces(r.Context(), userID)
 	if err != nil { return "", err }
 	if len(items) == 0 { return "", os.ErrNotExist }
@@ -117,6 +113,13 @@ func (a *api) apiKeyWorkspace(r *http.Request, userID string) (string, error) {
 
 func isMutation(method string) bool {
 	return method != http.MethodGet && method != http.MethodHead && method != http.MethodOptions
+}
+
+func requiresEditor(r *http.Request) bool {
+	if !isMutation(r.Method) { return false }
+	// Identity endpoints have finer-grained self-service/admin/owner checks in their handlers.
+	if strings.HasPrefix(r.URL.Path, "/api/v1/identity/") { return false }
+	return true
 }
 
 func (a *api) sessionRequestWithinWorkspace(w http.ResponseWriter, r *http.Request, sessionWorkspaceID string) bool {
