@@ -1,4 +1,5 @@
 import { CampaignControls, CreateCampaignForm } from "@/components/campaign-actions";
+import { CampaignLinkedItems } from "@/components/campaign-linked-items";
 import { getCampaignData } from "@/lib/campaign-api";
 
 function money(value: number) {
@@ -62,6 +63,11 @@ export default async function CampaignsPage() {
 
             <div className="campaign-linked-types">
               {Object.keys(report.linkedByType).length === 0 ? <span>No activity linked yet.</span> : Object.entries(report.linkedByType).map(([kind, count]) => <span key={kind}>{kind.replaceAll("_", " ")} <strong>{count}</strong></span>)}
+            </div>
+
+            <div className="campaign-attribution-block">
+              <span className="eyebrow">Attributed activity</span>
+              <CampaignLinkedItems campaignId={report.campaign.id} items={report.items ?? []} />
             </div>
 
             {Object.keys(report.metrics).length > 0 && <div className="campaign-manual-metrics">{Object.entries(report.metrics).map(([key, value]) => <div key={key}><span>{key.replaceAll("_", " ")}</span><strong>{value}</strong></div>)}</div>}
