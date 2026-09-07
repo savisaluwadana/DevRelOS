@@ -18,7 +18,10 @@ import (
 	signaldomain "github.com/savisaluwadana/DevRelOS/internal/domain/signals"
 	"github.com/savisaluwadana/DevRelOS/internal/providers/bluesky"
 	developersevents "github.com/savisaluwadana/DevRelOS/internal/providers/developersevents"
+	"github.com/savisaluwadana/DevRelOS/internal/providers/githubissues"
+	"github.com/savisaluwadana/DevRelOS/internal/providers/hackernews"
 	"github.com/savisaluwadana/DevRelOS/internal/providers/ocg"
+	"github.com/savisaluwadana/DevRelOS/internal/providers/rss"
 	"github.com/savisaluwadana/DevRelOS/internal/storage"
 )
 
@@ -36,6 +39,9 @@ func main() {
 		developersevents.New(),
 		bluesky.New(),
 		ocg.New(),
+		githubissues.New(),
+		hackernews.New(),
+		rss.New(),
 	)
 	log.Printf("DevRelOS worker started with %d provider(s)", len(registry.Providers()))
 
