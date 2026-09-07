@@ -6,6 +6,16 @@ import { FormEvent, useState } from "react";
 
 const apiURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
+const scheduleOptions = [
+  { value: "", label: "Manual only" },
+  { value: "15", label: "Every 15 minutes" },
+  { value: "60", label: "Hourly" },
+  { value: "360", label: "Every 6 hours" },
+  { value: "720", label: "Every 12 hours" },
+  { value: "1440", label: "Daily" },
+  { value: "10080", label: "Weekly" }
+];
+
 export function ConnectorForm() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -19,6 +29,8 @@ export function ConnectorForm() {
     const selectedProvider = String(data.get("provider") ?? "");
     const usageMode = String(data.get("usageMode") ?? "");
     const pageLimit = Number(data.get("pageLimit") ?? 100);
+    const scheduleRaw = String(data.get("scheduleMinutes") ?? "");
+    const scheduleMinutes = scheduleRaw ? Number(scheduleRaw) : undefined;
     const topics = String(data.get("topics") ?? "")
       .split(",")
       .map((item) => item.trim().toLowerCase().replaceAll(" ", "-"))
@@ -53,6 +65,20 @@ export function ConnectorForm() {
         config.include_pull_requests = data.get("includePullRequests") === "on";
         config.topics = topics;
       }
+      if (selectedProvider === "github.releases") {
+        config.repository = String(data.get("repository") ?? "").trim();
+        config.query = String(data.get("query") ?? "").trim();
+        config.token_env = String(data.get("tokenEnv") ?? "").trim();
+        config.include_prereleases = data.get("includePrereleases") === "on";
+        config.include_drafts = data.get("includeDrafts") === "on";
+        config.topics = topics;
+      }
+      if (selectedProvider === "github.discussions") {
+        config.repository = String(data.get("repository") ?? "").trim();
+        config.query = String(data.get("query") ?? "").trim();
+        config.token_env = String(data.get("tokenEnv") ?? "").trim();
+        config.topics = topics;
+      }
       if (selectedProvider === "hackernews") {
         const scanLimit = Number(data.get("scanLimit") ?? 60);
         config.query = String(data.get("query") ?? "").trim();
@@ -74,6 +100,7 @@ export function ConnectorForm() {
           name: String(data.get("name") ?? selectedProvider),
           enabled: true,
           config,
+          scheduleMinutes,
           policy: {
             reviewed: selectedProvider !== "developers.events" || usageMode === "noncommercial",
             note: "Provider-specific runtime policy is enforced by the worker."
@@ -101,26 +128,37 @@ export function ConnectorForm() {
       ? "US platform engineering communities"
       : provider === "github.issues"
         ? "OpenChoreo GitHub issues"
-        : provider === "hackernews"
-          ? "Hacker News platform engineering"
-          : provider === "rss"
-            ? "Kubernetes project blog feed"
-            : "Developer events discovery";
+        : provider === "github.releases"
+          ? "OpenChoreo release notes"
+          : provider === "github.discussions"
+            ? "OpenChoreo community discussions"
+            : provider === "hackernews"
+              ? "Hacker News platform engineering"
+              : provider === "rss"
+                ? "Kubernetes project blog feed"
+                : "Developer events discovery";
 
   return (
     <form className="operator-form integration-form" onSubmit={submit}>
-      <div className="form-grid-two">
+      <div className="form-grid-three">
         <label>Provider
           <select name="provider" value={provider} onChange={(event) => setProvider(event.target.value)}>
             <option value="developers.events">developers.events</option>
             <option value="bluesky">Bluesky public search</option>
             <option value="ocg">CNCF / Open Community Groups</option>
             <option value="github.issues">GitHub repository issues</option>
+            <option value="github.releases">GitHub releases</option>
+            <option value="github.discussions">GitHub discussions</option>
             <option value="hackernews">Hacker News</option>
             <option value="rss">RSS / Atom feed</option>
           </select>
         </label>
         <label>Connector name<input name="name" placeholder={placeholder} required /></label>
+        <label>Automatic schedule
+          <select name="scheduleMinutes" defaultValue="">
+            {scheduleOptions.map((option) => <option key={option.value || "manual"} value={option.value}>{option.label}</option>)}
+          </select>
+        </label>
       </div>
 
       {provider === "bluesky" && (
@@ -172,6 +210,40 @@ export function ConnectorForm() {
           </div>
           <label className="checkbox-label"><input name="includePullRequests" type="checkbox" /> Include pull requests returned by the Issues endpoint</label>
           <p className="policy-note">Tokens are never stored in connector config. Enter only the name of an environment variable available to the worker. Public repositories can run without a token at lower GitHub API limits.</p>
+        </>
+      )}
+
+      {provider === "github.releases" && (
+        <>
+          <div className="form-grid-two">
+            <label>Repository<input name="repository" placeholder="owner/repository" required /></label>
+            <label>GitHub token env var<input name="tokenEnv" placeholder="GITHUB_TOKEN (optional)" /></label>
+          </div>
+          <div className="form-grid-three">
+            <label>Optional keyword filter<input name="query" placeholder="kubernetes" /></label>
+            <label>Topics<input name="topics" placeholder="releases, kubernetes, devtools" /></label>
+            <label>Maximum releases per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="30" /></label>
+          </div>
+          <div className="form-grid-two">
+            <label className="checkbox-label"><input name="includePrereleases" type="checkbox" /> Include prereleases</label>
+            <label className="checkbox-label"><input name="includeDrafts" type="checkbox" /> Include drafts when the token can access them</label>
+          </div>
+          <p className="policy-note">Public release notes can be monitored without authentication. A token environment variable can be used for higher API limits or private repository access.</p>
+        </>
+      )}
+
+      {provider === "github.discussions" && (
+        <>
+          <div className="form-grid-two">
+            <label>Repository<input name="repository" placeholder="owner/repository" required /></label>
+            <label>GitHub token env var<input name="tokenEnv" placeholder="GITHUB_TOKEN" required /></label>
+          </div>
+          <div className="form-grid-three">
+            <label>Optional keyword filter<input name="query" placeholder="platform engineering" /></label>
+            <label>Topics<input name="topics" placeholder="community, devex, kubernetes" /></label>
+            <label>Maximum discussions per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="30" /></label>
+          </div>
+          <p className="policy-note">GitHub Discussions uses the authenticated GraphQL API. Store only the environment-variable name here; the worker reads the actual token from its runtime environment.</p>
         </>
       )}
 
@@ -230,6 +302,45 @@ export function ConnectorForm() {
         {message && <span className="form-message">{message}</span>}
       </div>
     </form>
+  );
+}
+
+export function ConnectorScheduleControl({ connector }: { connector: Connector }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function update(value: string) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch(`${apiURL}/api/v1/connectors/${connector.id}/schedule`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduleMinutes: value ? Number(value) : null })
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({ error: "Schedule update failed" }));
+        throw new Error(payload.error ?? "Schedule update failed");
+      }
+      setMessage("Schedule updated.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Schedule update failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="connector-schedule-control">
+      <label>Schedule
+        <select disabled={busy} defaultValue={connector.scheduleMinutes ? String(connector.scheduleMinutes) : ""} onChange={(event) => update(event.target.value)}>
+          {scheduleOptions.map((option) => <option key={option.value || "manual"} value={option.value}>{option.label}</option>)}
+        </select>
+      </label>
+      {message && <span className="form-message">{message}</span>}
+    </div>
   );
 }
 
