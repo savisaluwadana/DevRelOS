@@ -65,14 +65,12 @@ func (a *api) createSignal(w http.ResponseWriter, r *http.Request) {
 		writeBadRequest(w, "engagementScore cannot be negative")
 		return
 	}
-	if input.ProjectID == "" {
-		var err error
-		input.ProjectID, err = a.projectID(r)
-		if err != nil {
-			writeError(w, err)
-			return
-		}
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
 	}
+	input.ProjectID = projectID
 	created, err := a.store.CreateSignal(r.Context(), input)
 	if err != nil {
 		writeError(w, err)
