@@ -1,3 +1,5 @@
+import { serverFetch } from "@/lib/server-api";
+
 export type ContentStatus = "brief" | "drafting" | "review" | "approved" | "published" | "archived";
 
 export type ContentChannel =
@@ -33,14 +35,9 @@ export type ContentAsset = {
   updatedAt: string;
 };
 
-const apiURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
-
 export async function getContentAssets(): Promise<{ items: ContentAsset[]; connected: boolean }> {
   try {
-    const response = await fetch(`${apiURL}/api/v1/content-assets?limit=300`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(3000)
-    });
+    const response = await serverFetch("/api/v1/content-assets?limit=300", { signal: AbortSignal.timeout(3000) });
     if (!response.ok) return { items: [], connected: false };
     return { items: (await response.json()) as ContentAsset[], connected: true };
   } catch {
