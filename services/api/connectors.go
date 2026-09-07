@@ -41,6 +41,10 @@ func (a *api) createConnector(w http.ResponseWriter, r *http.Request) {
 		writeBadRequest(w, "provider and name are required")
 		return
 	}
+	if hasPlaintextCredential(input.Config) {
+		writeBadRequest(w, "connector config must not contain plaintext credentials; use secretId or token_env")
+		return
+	}
 	if input.ScheduleMinutes != nil && (*input.ScheduleMinutes < 15 || *input.ScheduleMinutes > 10080) {
 		writeBadRequest(w, "scheduleMinutes must be between 15 and 10080 minutes")
 		return
@@ -62,6 +66,19 @@ func (a *api) createConnector(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)
+}
+
+func hasPlaintextCredential(config map[string]any) bool {
+	for key, value := range config {
+		normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(key), "-", "_"))
+		switch normalized {
+		case "token", "access_token", "api_key", "apikey", "password", "client_secret", "secret", "bearer_token":
+			if text, ok := value.(string); ok && strings.TrimSpace(text) != "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (a *api) updateConnectorSchedule(w http.ResponseWriter, r *http.Request) {
