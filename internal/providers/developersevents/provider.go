@@ -59,12 +59,16 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, feedURL, nil)
-	if err != nil { return connectors.FetchResult{}, err }
+	if err != nil {
+		return connectors.FetchResult{}, err
+	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "DevRelOS/0.1 (+https://github.com/savisaluwadana/DevRelOS)")
 
 	resp, err := p.client.Do(req)
-	if err != nil { return connectors.FetchResult{}, err }
+	if err != nil {
+		return connectors.FetchResult{}, err
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return connectors.FetchResult{}, fmt.Errorf("developers.events returned %s", resp.Status)
