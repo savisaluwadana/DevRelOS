@@ -17,11 +17,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false
       - name: Download modules
         run: go mod download
-      - name: Format check
-        run: test -z "$(gofmt -l services internal)" || (gofmt -l services internal && exit 1)
+      - name: Format
+        run: gofmt -w services internal
       - name: Test
         run: go test ./...
 
@@ -35,8 +35,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: apps/web/package.json
       - name: Install dependencies
         run: npm install
       - name: Build
