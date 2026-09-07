@@ -27,7 +27,7 @@ type actor struct {
 func (a *api) withAuth(next http.Handler) http.Handler {
 	operatorToken := strings.TrimSpace(os.Getenv("DEVRELOS_API_TOKEN"))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/healthz" || r.URL.Path == "/readyz" || r.URL.Path == "/metrics" ||
+		if r.URL.Path == "/healthz" || r.URL.Path == "/readyz" ||
 			(r.Method == http.MethodPost && r.URL.Path == "/api/v1/identity/invitations/accept") {
 			next.ServeHTTP(w, r)
 			return
@@ -117,7 +117,6 @@ func isMutation(method string) bool {
 
 func requiresEditor(r *http.Request) bool {
 	if !isMutation(r.Method) { return false }
-	// Identity endpoints have finer-grained self-service/admin/owner checks in their handlers.
 	if strings.HasPrefix(r.URL.Path, "/api/v1/identity/") { return false }
 	return true
 }

@@ -1,6 +1,6 @@
 SHELL := /bin/sh
 
-.PHONY: up down logs ps db-up db-down migrate api worker mcp web-install web test-go test-web
+.PHONY: up down logs ps prod-up prod-down prod-logs prod-config backup restore db-up db-down migrate api worker mcp web-install web test-go test-web fmt-check
 
 up:
 	docker compose up -d --build
@@ -13,6 +13,25 @@ logs:
 
 ps:
 	docker compose ps
+
+prod-config:
+	docker compose -f docker-compose.production.yml config >/dev/null
+
+prod-up:
+	docker compose -f docker-compose.production.yml up -d --build
+
+prod-down:
+	docker compose -f docker-compose.production.yml down
+
+prod-logs:
+	docker compose -f docker-compose.production.yml logs -f caddy web api worker
+
+backup:
+	sh scripts/backup.sh
+
+restore:
+	@test -n "$(BACKUP)" || (echo "Usage: make restore BACKUP=./backups/<timestamp>" && exit 1)
+	@DEVRELOS_CONFIRM_RESTORE=YES sh scripts/restore.sh "$(BACKUP)"
 
 db-up:
 	docker compose up -d postgres
@@ -38,6 +57,9 @@ web-install:
 
 web:
 	cd apps/web && npm run dev
+
+fmt-check:
+	@test -z "$$(gofmt -l services internal)" || (gofmt -l services internal; echo "Go files require gofmt"; exit 1)
 
 test-go:
 	go test ./...

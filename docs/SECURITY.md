@@ -1,130 +1,130 @@
 # DevRelOS security model
 
-DevRelOS now supports authenticated self-hosted operation with first-class users, workspace RBAC, revocable API keys and per-user browser sessions.
+DevRelOS supports authenticated self-hosted operation with users, workspace RBAC, revocable API keys, dedicated short-lived browser sessions, encrypted connector secrets, audit events and a hardened HTTPS production profile.
 
-## API authentication
+## Root/operator credential
 
-Set both:
+Production requires:
 
 ```text
 DEVRELOS_API_TOKEN=<long random secret>
 DEVRELOS_REQUIRE_AUTH=true
 ```
 
-The static operator token remains the bootstrap/break-glass credential. It has broad operator access and should be treated like a root secret.
+The static operator token is a bootstrap/break-glass credential with broad access. Do not use it as a normal browser/user credential and do not put it in `NEXT_PUBLIC_*`, source control, screenshots, logs, localStorage or connector JSON.
 
-DevRelOS also supports revocable user API keys with the `drk_` prefix. API key plaintext is returned once at creation, while only a SHA-256 hash is stored in PostgreSQL. Keys can expire, be revoked, and record last-used timestamps.
+## User API keys
 
-Liveness and readiness endpoints remain unauthenticated so container and orchestration probes continue to work.
+User API keys use the `drk_` prefix. Plaintext is returned only once at creation; PostgreSQL stores only a SHA-256 hash. Keys may expire, can be revoked, and record last-used timestamps.
 
-Do not put API credentials in `NEXT_PUBLIC_*`, source control, connector JSON, screenshots, logs, localStorage, or client-side JavaScript state.
+API keys are appropriate for CLI/MCP/automation access and as the one-time browser-session bootstrap credential.
 
-## Workspace roles
+## Dedicated browser sessions
 
-Workspace membership roles are:
+Browser login exchanges a valid `drk_` key for a separate `ds_` session token. Only the hash of the `ds_` token is stored in PostgreSQL and only the `ds_` token is placed in the HttpOnly, SameSite=Strict browser cookie.
 
-- `owner` — full workspace administration, including owner grants;
-- `admin` — membership/security administration and normal writes;
-- `editor` — normal DevRel workflow writes;
-- `viewer` — read-only access.
+Production uses `Secure` cookies. Sessions have a bounded lifetime, can be revoked, and update last-seen metadata. Sign-out revokes the database session before clearing the cookie.
 
-User API keys must resolve to an active user and active workspace membership. Read requests require workspace membership; non-read domain operations require at least `editor`.
+The Next.js edge validates the session against the Go API on protected requests. Revoked, expired, disabled-user or invalid-membership sessions are rejected.
 
-The static operator token bypasses workspace role checks intentionally as the bootstrap/break-glass path.
+## Workspace isolation
 
-## Browser sessions
+Roles are:
 
-Set:
+- `owner` — full workspace administration and owner grants;
+- `admin` — security/membership administration plus normal writes;
+- `editor` — normal workflow writes;
+- `viewer` — read only.
 
-```text
-DEVRELOS_WEB_SESSIONS=true
-DEVRELOS_SESSION_MAX_AGE_SECONDS=28800
-```
+A dedicated browser session is pinned to exactly one active workspace. Explicit workspace switching updates that server-side session after verifying membership. Query-string manipulation of `workspaceId` or `projectId` cannot move a session outside its workspace.
 
-after bootstrapping the first owner and owner API key.
+When no `projectId` is provided, the API resolves the default project **inside the active workspace**, not a global default project.
 
-The `/login` flow validates the supplied `drk_...` key against `/api/v1/identity/me` and stores it in an HttpOnly, SameSite=Strict cookie. The cookie is Secure in production builds. The key is not readable from page JavaScript after sign-in.
+Linked writes (CFPs, submissions, connector operations and other scoped resources) verify ownership server-side rather than trusting body IDs.
 
-The Next.js edge proxy revalidates the credential on protected requests. Revoked, expired, disabled-user, or membership-invalid credentials are cleared and redirected back to `/login`.
+## Invitations
 
-The same-origin `/api/devrelos/...` forwarder uses the browser user's session credential whenever session mode is enabled. It does **not** fall back to the operator token. This is important because Go RBAC must remain authoritative for browser mutations.
+Workspace invitations use one-time `di_` tokens stored only as hashes. Invitations have expiry and role metadata and can be revoked before use. Only owners can invite another owner.
 
-`/access` is additionally blocked at the web edge for non-admin/non-owner users, while the Go API independently enforces the same authorization boundary.
+Invitation acceptance atomically creates/attaches the user membership and issues a dedicated browser session. The invitation token is shown only at creation and should be transmitted through an appropriate private channel.
 
-The current browser session is backed directly by a revocable API key rather than a separate short-lived session-token table. This is acceptable for the current self-hosted beta but should be replaced by dedicated short-lived sessions when OIDC/passwordless login is added.
+## Connector secrets
 
-## Server-rendered reads
-
-Server-rendered data loaders still use the internal server-side API credential. The edge proxy authenticates the browser before those pages render, and sensitive administration routes are role-gated. Browser writes always use the user's own credential. A future workspace-switching/OIDC tranche should propagate the selected workspace/user context into all server-rendered reads as well.
-
-## Legacy Basic operator gate
-
-When browser sessions are disabled, small self-hosted deployments can set:
+Set a stable 32-byte master key through:
 
 ```text
-DEVRELOS_WEB_USERNAME=<operator>
-DEVRELOS_WEB_PASSWORD=<strong secret>
+DEVRELOS_SECRET_KEY=<base64 32-byte key>
 ```
 
-The Next.js proxy then requires HTTP Basic authentication for the operator UI and same-origin API proxy. This gate should only be used over TLS. Session mode takes precedence when enabled.
+Generate it with `openssl rand -base64 32` and store it in the deployment secret manager. Losing this key makes encrypted connector values unrecoverable; leaking it compromises connector credentials.
 
-## Access & Security workspace
+Secret values are encrypted with AES-256-GCM before database storage. The associated authenticated data includes workspace, provider, secret name and key version. List/read management APIs return metadata only and never return plaintext, ciphertext or nonces.
 
-The `/access` workspace lets owners/admins:
+A connector stores only a `secretId`. Cross-workspace/provider attachment is rejected. Secret deletion is blocked while still referenced. Rotation creates a new key version without changing the connector reference.
 
-- provision workspace users with an initial role;
-- change workspace roles;
-- create revocable API keys;
-- inspect API key metadata and revoke keys;
-- inspect recent security audit events.
+Workers decrypt attached connector credentials only in memory immediately before provider validation/fetch and remove the injected plaintext after the run path completes. Legacy environment-variable credentials remain supported but encrypted workspace secrets are preferred.
 
-User provisioning is workspace-scoped. New users receive their initial workspace membership atomically so they cannot be left as invisible orphan records during normal administration.
+## Browser mutation boundary
 
-API key secrets are shown only once when created.
+Browser mutations use the same-origin `/api/devrelos/...` proxy. In session mode the proxy forwards the signed-in user's `ds_` token and never falls back to the operator token.
 
-## Audit events
+The proxy rejects cross-site mutation origins and emits strict browser headers. The Go API remains authoritative for RBAC.
 
-Security-sensitive operations append audit events with workspace, actor, action, resource and metadata. Current identity events include user provisioning, membership changes, API key creation and API key revocation.
+## Request protection
 
-The audit stream should be extended to high-risk product actions such as connector credential changes, outreach approvals/sends, publishing, session changes and destructive administration.
+The API applies:
 
-## Project and workspace isolation
+- bounded request-body decoding;
+- server read-header/read/write/idle timeouts;
+- 1 MiB maximum headers;
+- configurable per-client rate limiting;
+- CORS limited to the configured web origin;
+- no-store response caching;
+- anti-framing/content-type/referrer headers;
+- generated or validated `X-Request-ID` values.
 
-Write handlers resolve the active project/workspace on the server rather than trusting `projectId` or `workspaceId` supplied in a JSON body. Linked writes such as CFP creation, submission creation/status changes, and connector-run operations validate ownership in SQL.
+Rate limiting is per process and keyed by a hash of the bearer credential when available, otherwise by client IP. `X-Forwarded-For` is trusted only when `DEVRELOS_TRUST_PROXY=true`; production Compose sets this because the API is isolated behind Caddy.
 
-User API keys are additionally checked against workspace membership before domain requests are allowed. Identity user listings are scoped to the current workspace for admin/owner callers.
+## Metrics and logs
 
-## Network exposure
+`/healthz` and `/readyz` are public probes. `/metrics` is authenticated.
 
-The default Compose configuration binds PostgreSQL and the Go API to `127.0.0.1`. The Next.js web service is the intended network entry point.
+The API exports Prometheus-compatible uptime, active-request, request-count and duration-sum metrics with bounded route-pattern labels. Request logs include request ID, method, path, route pattern, status, bytes and duration.
 
-Before exposing DevRelOS outside a trusted host/network:
+Do not add raw credentials, message bodies or connector secret values to operational logs.
 
-1. terminate HTTPS at a trusted reverse proxy or ingress;
-2. enable `DEVRELOS_REQUIRE_AUTH=true` and configure a strong operator token;
-3. enable per-user browser sessions after bootstrapping the first owner;
-4. store credentials in a deployment secret manager rather than committed environment files;
-5. restrict database and media-volume access to the application host/workers;
-6. configure backups and restore testing.
+## Outreach delivery
 
-## Connector and provider secrets
+Outbound email is approval-gated. An email draft cannot be marked `sent` by a browser/API status edit; only successful SMTP delivery by the worker may set that state.
 
-Provider credentials should currently be supplied at runtime through environment variables or a secret manager. Connector records should contain references/configuration, not copied secret values.
+Delivery jobs are durable and unique per outreach item. Workers claim them with PostgreSQL `SKIP LOCKED`, re-check do-not-contact state, record failures and retry with bounded exponential backoff. SMTP authentication is refused without TLS when TLS is required, and message headers are sanitized against CR/LF injection.
 
-The next security tranche should add encrypted connector-secret storage with per-workspace access controls, rotation metadata and provider-specific secret references.
+Non-email channels remain human/manual unless a future connector implements an explicitly authorized delivery API.
 
 ## Media security
 
-FFmpeg jobs resolve local source/output paths inside configured media roots. The worker rejects paths escaping those roots and the base renderer does not fetch arbitrary remote media URLs.
+FFmpeg jobs resolve local paths inside configured media roots; path traversal outside those roots is rejected. The base renderer does not fetch arbitrary remote media URLs.
 
-Treat uploaded/ingested media as untrusted input. A public upload surface should add MIME validation, file-size quotas, storage isolation, malware scanning where appropriate, and resource limits before being exposed to external users.
+The supported production topology uses a persistent local Docker media volume. Public upload surfaces would need additional upload quotas, MIME validation and malware/resource controls before accepting arbitrary untrusted uploads.
 
-## Outbound outreach
+## Network topology and TLS
 
-Outbound outreach remains approval-gated. DevRelOS should not become an autonomous mass-messaging system. Maintain do-not-contact state, source provenance and human review before sending.
+`docker-compose.production.yml` creates an internal backend network for PostgreSQL, API and worker services. Caddy is the only public service and exposes 80/443. It provides automatic TLS, HSTS and edge security headers before proxying to the Next.js web application.
 
-## Remaining gaps before broad production
+Production startup requires database, API and encryption secrets instead of silently accepting demo defaults.
 
-The largest remaining identity/security gaps are OIDC/passwordless login, dedicated short-lived web sessions, invitations, workspace switching, CSRF protections for future cookie-authenticated mutation endpoints, encrypted connector-secret storage, rate limiting, TLS deployment templates, backup/restore, remote object storage policies, stronger audit coverage and horizontal worker coordination.
+## Backup and recovery
 
-Security changes should continue to be validated with Go tests, Next.js production builds and authenticated/session-aware Compose smoke tests.
+`scripts/backup.sh` captures PostgreSQL plus media data and writes checksums. `scripts/restore.sh` requires explicit destructive confirmation, verifies checksums when available, restores database/media, and restarts application services.
+
+Keep backups encrypted/off-host according to your environment, restrict access to them, and test restoration periodically. A backup containing the database does not replace protection of `DEVRELOS_SECRET_KEY`, which must also be recoverable through the deployment secret-management process.
+
+## Audit events
+
+Identity, membership, API-key, session, invitation and connector-secret management actions append workspace-scoped audit events. Additional high-risk side effects should continue to append audit records as integrations are added.
+
+## Supported production boundary
+
+The supported v1 target is a single-node, HTTPS-terminated, authenticated self-hosted deployment. High-availability/multi-host media requires a shared/object-storage adapter, and enterprise SSO/OIDC may be added for environments that require centralized identity. These are deployment extensions rather than reasons to weaken the current session/RBAC model.
+
+Provider APIs that require separate approval/licensing (such as Reddit or X) must be integrated only under their official terms; DevRelOS should not substitute unauthorized scraping.

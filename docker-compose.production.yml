@@ -2,18 +2,18 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: devrelos
-      POSTGRES_USER: devrelos
-      POSTGRES_PASSWORD: devrelos
-    ports:
-      - "127.0.0.1:5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB:-devrelos}
+      POSTGRES_USER: ${POSTGRES_USER:-devrelos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - devrelos-postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U devrelos -d devrelos"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-devrelos} -d ${POSTGRES_DB:-devrelos}"]
       interval: 5s
       timeout: 3s
-      retries: 20
+      retries: 30
+    restart: unless-stopped
+    networks: [backend]
 
   migrate:
     image: postgres:17-alpine
@@ -21,12 +21,13 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://devrelos:devrelos@postgres:5432/devrelos?sslmode=disable
+      DATABASE_URL: postgres://${POSTGRES_USER:-devrelos}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-devrelos}?sslmode=disable
     volumes:
       - ./migrations:/migrations:ro
       - ./scripts/migrate.sh:/scripts/migrate.sh:ro
     entrypoint: ["/bin/sh", "/scripts/migrate.sh"]
     restart: "no"
+    networks: [backend]
 
   api:
     build:
@@ -36,24 +37,24 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgres://devrelos:devrelos@postgres:5432/devrelos?sslmode=disable
+      DATABASE_URL: postgres://${POSTGRES_USER:-devrelos}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-devrelos}?sslmode=disable
       DEVRELOS_HTTP_ADDR: :8080
       DEVRELOS_DEFAULT_WORKSPACE: default
       DEVRELOS_DEFAULT_PROJECT: default
-      DEVRELOS_CORS_ORIGIN: http://localhost:3000
-      DEVRELOS_API_TOKEN: ${DEVRELOS_API_TOKEN:-}
-      DEVRELOS_REQUIRE_AUTH: ${DEVRELOS_REQUIRE_AUTH:-false}
-      DEVRELOS_SECRET_KEY: ${DEVRELOS_SECRET_KEY:-}
-      DEVRELOS_RATE_LIMIT_ENABLED: ${DEVRELOS_RATE_LIMIT_ENABLED:-true}
+      DEVRELOS_CORS_ORIGIN: https://${DEVRELOS_DOMAIN:?DEVRELOS_DOMAIN is required}
+      DEVRELOS_API_TOKEN: ${DEVRELOS_API_TOKEN:?DEVRELOS_API_TOKEN is required}
+      DEVRELOS_REQUIRE_AUTH: "true"
+      DEVRELOS_SECRET_KEY: ${DEVRELOS_SECRET_KEY:?DEVRELOS_SECRET_KEY is required}
+      DEVRELOS_RATE_LIMIT_ENABLED: "true"
       DEVRELOS_RATE_LIMIT_RPM: ${DEVRELOS_RATE_LIMIT_RPM:-120}
-      DEVRELOS_TRUST_PROXY: ${DEVRELOS_TRUST_PROXY:-false}
-    ports:
-      - "127.0.0.1:8080:8080"
+      DEVRELOS_TRUST_PROXY: "true"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8080/readyz"]
       interval: 5s
       timeout: 3s
-      retries: 20
+      retries: 30
+    restart: unless-stopped
+    networks: [backend]
 
   worker:
     build:
@@ -63,13 +64,13 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgres://devrelos:devrelos@postgres:5432/devrelos?sslmode=disable
+      DATABASE_URL: postgres://${POSTGRES_USER:-devrelos}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-devrelos}?sslmode=disable
       DEVRELOS_DEFAULT_WORKSPACE: default
       DEVRELOS_DEFAULT_PROJECT: default
-      DEVRELOS_WORKER_POLL_INTERVAL: 5s
+      DEVRELOS_WORKER_POLL_INTERVAL: ${DEVRELOS_WORKER_POLL_INTERVAL:-5s}
       DEVRELOS_MEDIA_ROOT: /data/media
       DEVRELOS_MEDIA_OUTPUT_ROOT: /data/media/outputs
-      DEVRELOS_SECRET_KEY: ${DEVRELOS_SECRET_KEY:-}
+      DEVRELOS_SECRET_KEY: ${DEVRELOS_SECRET_KEY:?DEVRELOS_SECRET_KEY is required}
       DEVRELOS_SMTP_ENABLED: ${DEVRELOS_SMTP_ENABLED:-false}
       DEVRELOS_SMTP_HOST: ${DEVRELOS_SMTP_HOST:-}
       DEVRELOS_SMTP_PORT: ${DEVRELOS_SMTP_PORT:-587}
@@ -80,10 +81,10 @@ services:
       DEVRELOS_SMTP_STARTTLS: ${DEVRELOS_SMTP_STARTTLS:-true}
       DEVRELOS_SMTP_REQUIRE_TLS: ${DEVRELOS_SMTP_REQUIRE_TLS:-true}
       DEVRELOS_OUTREACH_MAX_ATTEMPTS: ${DEVRELOS_OUTREACH_MAX_ATTEMPTS:-5}
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     volumes:
-      - ./data/media:/data/media
+      - devrelos-media:/data/media
     restart: unless-stopped
+    networks: [backend]
 
   web:
     build:
@@ -96,15 +97,38 @@ services:
         condition: service_healthy
     environment:
       DEVRELOS_API_URL: http://api:8080
-      DEVRELOS_API_TOKEN: ${DEVRELOS_API_TOKEN:-}
-      DEVRELOS_WEB_USERNAME: ${DEVRELOS_WEB_USERNAME:-}
-      DEVRELOS_WEB_PASSWORD: ${DEVRELOS_WEB_PASSWORD:-}
-      DEVRELOS_WEB_SESSIONS: ${DEVRELOS_WEB_SESSIONS:-false}
+      DEVRELOS_API_TOKEN: ${DEVRELOS_API_TOKEN:?DEVRELOS_API_TOKEN is required}
+      DEVRELOS_WEB_SESSIONS: "true"
       DEVRELOS_SESSION_MAX_AGE_SECONDS: ${DEVRELOS_SESSION_MAX_AGE_SECONDS:-28800}
-      DEVRELOS_SESSION_SECURE_COOKIE: ${DEVRELOS_SESSION_SECURE_COOKIE:-false}
-    ports:
-      - "3000:3000"
+      DEVRELOS_SESSION_SECURE_COOKIE: "true"
     restart: unless-stopped
+    networks: [backend, edge]
+
+  caddy:
+    image: caddy:2.10-alpine
+    depends_on:
+      web:
+        condition: service_started
+    environment:
+      DEVRELOS_DOMAIN: ${DEVRELOS_DOMAIN:?DEVRELOS_DOMAIN is required}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+    networks: [edge]
+
+networks:
+  backend:
+    internal: true
+  edge:
 
 volumes:
   devrelos-postgres:
+  devrelos-media:
+  caddy-data:
+  caddy-config:
