@@ -42,6 +42,10 @@ func main() {
 	mux.HandleFunc("PATCH /api/v1/submissions/{id}/status", a.updateSubmissionStatus)
 	mux.HandleFunc("GET /api/v1/communities", a.listCommunities)
 	mux.HandleFunc("POST /api/v1/communities", a.createCommunity)
+	mux.HandleFunc("GET /api/v1/connectors", a.listConnectors)
+	mux.HandleFunc("POST /api/v1/connectors", a.createConnector)
+	mux.HandleFunc("GET /api/v1/connectors/{id}/runs", a.listConnectorRuns)
+	mux.HandleFunc("POST /api/v1/connectors/{id}/runs", a.queueConnectorRun)
 
 	addr := envOr("DEVRELOS_HTTP_ADDR", ":8080")
 	server := &http.Server{
