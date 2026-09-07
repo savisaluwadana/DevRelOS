@@ -143,7 +143,7 @@ jobs:
           login_json=$(curl -fsS -c /tmp/devrelos.cookies -H 'Content-Type: application/json' \
             -d "{\"token\":\"$owner_key\"}" http://127.0.0.1:3000/api/session/login)
           printf '%s' "$login_json" | grep -q '"ok":true'
-          cookie_value=$(awk '$6=="devrelos_user_token" {print $7}' /tmp/devrelos.cookies)
+          cookie_value=$(awk '$6=="devrelos_session" {print $7}' /tmp/devrelos.cookies)
           test "${cookie_value#ds_}" != "$cookie_value"
           test "${cookie_value#drk_}" = "$cookie_value"
 
