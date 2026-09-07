@@ -29,7 +29,8 @@ export function UserForm() {
         body: JSON.stringify({
           email: String(data.get("email") ?? ""),
           displayName: String(data.get("displayName") ?? ""),
-          status: "active"
+          status: "active",
+          role: String(data.get("role") ?? "viewer")
         })
       });
       event.currentTarget.reset();
@@ -42,7 +43,10 @@ export function UserForm() {
     <form className="access-form" onSubmit={submit}>
       <input name="email" type="email" placeholder="user@example.com" required />
       <input name="displayName" placeholder="Display name" />
-      <button type="submit">Create user</button>
+      <select name="role" defaultValue="viewer">
+        {(["viewer", "editor", "admin", "owner"] as MembershipRole[]).map((role) => <option key={role} value={role}>{role}</option>)}
+      </select>
+      <button type="submit">Provision user</button>
       {error ? <span className="form-error">{error}</span> : null}
     </form>
   );
