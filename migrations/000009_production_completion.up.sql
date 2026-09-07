@@ -62,11 +62,12 @@ CREATE TABLE outreach_deliveries (
   message_id TEXT,
   last_error TEXT,
   queued_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   sent_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX outreach_deliveries_queue_idx
-  ON outreach_deliveries(status, queued_at)
+  ON outreach_deliveries(next_attempt_at, queued_at)
   WHERE status IN ('queued','failed');
