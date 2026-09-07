@@ -1,5 +1,6 @@
+import { CreateSubmissionDraftButton } from "@/components/cfp-opportunity-action";
 import { formatDate, locationLabel } from "@/lib/api";
-import { getSpeakingOpportunities } from "@/lib/opportunity-api";
+import { getOpportunityData } from "@/lib/opportunity-api";
 
 function scoreClass(score: number) {
   if (score >= 75) return "opportunity-score high";
@@ -8,39 +9,40 @@ function scoreClass(score: number) {
 }
 
 export default async function OpportunitiesPage() {
-  const data = await getSpeakingOpportunities();
-  const highFit = data.items.filter((item) => item.score >= 70).length;
-  const warm = data.items.filter((item) => item.relationship && item.relationship.stage !== "cold").length;
-  const withUpcomingEvents = data.items.filter((item) => item.community.nextEventAt).length;
+  const data = await getOpportunityData();
+  const highFitSpeaking = data.speaking.filter((item) => item.score >= 70).length;
+  const highFitCFPs = data.cfps.filter((item) => item.score >= 70).length;
+  const warm = data.speaking.filter((item) => item.relationship && item.relationship.stage !== "cold").length;
+  const closingSoon = data.cfps.filter((item) => item.cfp.closesAt && new Date(item.cfp.closesAt).getTime() - Date.now() <= 14 * 24 * 60 * 60 * 1000).length;
 
   return (
     <div className="page-wrap opportunities-page">
       <header className="topbar compact-topbar">
         <div>
-          <span className="eyebrow">Speaking Opportunity Intelligence</span>
-          <h1>Match the right talk to the right developer community.</h1>
-          <p>Rank community/talk pairs using explicit topic fit, community quality, relationship strength, talk readiness, timing and current outreach state.</p>
+          <span className="eyebrow">Opportunity Intelligence</span>
+          <h1>Match the right DevRel action to the right opportunity.</h1>
+          <p>Rank community speaking targets and open CFPs using inspectable fit signals instead of manually scanning every event, group and reusable talk.</p>
         </div>
-        <a className="button ghost" href="/integrations">Discover more communities →</a>
+        <a className="button ghost" href="/integrations">Discover more opportunities →</a>
       </header>
 
-      {!data.connected && <div className="notice"><strong>Opportunity API is not connected.</strong><span>Start PostgreSQL and the Go API to calculate speaking matches.</span></div>}
+      {!data.connected && <div className="notice"><strong>Opportunity API is not connected.</strong><span>Start PostgreSQL and the Go API to calculate opportunity matches.</span></div>}
 
       <section className="metrics-grid">
-        <article className="metric-card"><span className="eyebrow">Pairings</span><strong className="metric-value">{data.items.length}</strong><span className="muted">eligible community/talk combinations</span></article>
-        <article className="metric-card"><span className="eyebrow">High Fit</span><strong className="metric-value">{highFit}</strong><span className="muted">score 70 or higher</span></article>
-        <article className="metric-card"><span className="eyebrow">Warm Context</span><strong className="metric-value">{warm}</strong><span className="muted">pairings with a non-cold relationship</span></article>
-        <article className="metric-card"><span className="eyebrow">Upcoming Events</span><strong className="metric-value">{withUpcomingEvents}</strong><span className="muted">pairings with known timing</span></article>
+        <article className="metric-card"><span className="eyebrow">Speaking Matches</span><strong className="metric-value">{data.speaking.length}</strong><span className="muted">eligible community/talk pairs</span></article>
+        <article className="metric-card"><span className="eyebrow">High-Fit Speaking</span><strong className="metric-value">{highFitSpeaking}</strong><span className="muted">score 70 or higher</span></article>
+        <article className="metric-card"><span className="eyebrow">High-Fit CFPs</span><strong className="metric-value">{highFitCFPs}</strong><span className="muted">talk/CFP pairs at 70+</span></article>
+        <article className="metric-card"><span className="eyebrow">Closing Soon</span><strong className="metric-value">{closingSoon}</strong><span className="muted">ranked CFPs within 14 days</span></article>
       </section>
 
       <section className="panel opportunity-panel">
         <div className="panel-head">
-          <div><span className="eyebrow">Ranked Pipeline</span><h2>Best speaking opportunities</h2></div>
-          <span className="muted panel-note">Scores are deterministic and inspectable.</span>
+          <div><span className="eyebrow">Community Pipeline</span><h2>Best speaking opportunities</h2></div>
+          <span className="muted panel-note">{warm} pairings have warm relationship context.</span>
         </div>
 
         <div className="opportunity-list">
-          {data.items.length === 0 ? <p className="empty-copy">No pairings yet. Add communities and talks, then return here.</p> : data.items.map((item) => {
+          {data.speaking.length === 0 ? <p className="empty-copy">No pairings yet. Add communities and talks, then return here.</p> : data.speaking.map((item) => {
             const outreachHref = `/outreach?communityId=${encodeURIComponent(item.community.id)}&talkId=${encodeURIComponent(item.talk.id)}&score=${item.score}`;
             return (
               <article className="opportunity-card" key={`${item.community.id}-${item.talk.id}`}>
@@ -60,7 +62,7 @@ export default async function OpportunitiesPage() {
                     <span>{item.talk.status} · {item.talk.durationMinutes} min · {item.talk.topics.join(" · ") || "no topics"}</span>
                   </div>
 
-                  <div className="score-breakdown" aria-label="Score breakdown">
+                  <div className="score-breakdown" aria-label="Speaking score breakdown">
                     <span>Topic <strong>{item.breakdown.topicFit}</strong></span>
                     <span>Community <strong>{item.breakdown.communityQuality}</strong></span>
                     <span>Relationship <strong>{item.breakdown.relationship}</strong></span>
@@ -69,9 +71,7 @@ export default async function OpportunitiesPage() {
                     {item.breakdown.penalty > 0 && <span className="penalty">Penalty <strong>-{item.breakdown.penalty}</strong></span>}
                   </div>
 
-                  <div className="reason-list">
-                    {item.reasons.length === 0 ? <span>No score evidence yet.</span> : item.reasons.map((reason) => <span key={reason}>{reason}</span>)}
-                  </div>
+                  <div className="reason-list">{item.reasons.length === 0 ? <span>No score evidence yet.</span> : item.reasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
                 </div>
 
                 <aside className="opportunity-side">
@@ -83,6 +83,53 @@ export default async function OpportunitiesPage() {
               </article>
             );
           })}
+        </div>
+      </section>
+
+      <section className="panel opportunity-panel">
+        <div className="panel-head">
+          <div><span className="eyebrow">Conference Pipeline</span><h2>Best CFP / talk matches</h2></div>
+          <a className="button ghost" href="/manage#submissions">Submission pipeline →</a>
+        </div>
+
+        <div className="opportunity-list">
+          {data.cfps.length === 0 ? <p className="empty-copy">No open CFP/talk pairings yet.</p> : data.cfps.map((item) => (
+            <article className="opportunity-card cfp-opportunity-card" key={`${item.cfp.id}-${item.talk.id}`}>
+              <div className="opportunity-main">
+                <div className="opportunity-title-row">
+                  <div>
+                    <span className="eyebrow">Open CFP</span>
+                    <h3>{item.event.name || item.cfp.eventName || item.cfp.name}</h3>
+                    <span className="subline">Closes {formatDate(item.cfp.closesAt)} · {item.cfp.tracks.join(" · ") || "tracks not specified"}</span>
+                  </div>
+                  <div className={scoreClass(item.score)}><strong>{item.score}</strong><span>/100</span></div>
+                </div>
+
+                <div className="opportunity-talk">
+                  <span className="eyebrow">Recommended talk</span>
+                  <strong>{item.talk.title}</strong>
+                  <span>{item.talk.status} · {item.talk.topics.join(" · ") || "no topics"}</span>
+                </div>
+
+                <div className="score-breakdown" aria-label="CFP score breakdown">
+                  <span>Topic <strong>{item.breakdown.topicFit}</strong></span>
+                  <span>Readiness <strong>{item.breakdown.readiness}</strong></span>
+                  <span>Deadline <strong>{item.breakdown.deadline}</strong></span>
+                  <span>Project fit <strong>{item.breakdown.existingFit}</strong></span>
+                  <span>Submission gap <strong>{item.breakdown.submissionGap}</strong></span>
+                  {item.breakdown.penalty > 0 && <span className="penalty">Penalty <strong>-{item.breakdown.penalty}</strong></span>}
+                </div>
+                <div className="reason-list">{item.reasons.length === 0 ? <span>No score evidence yet.</span> : item.reasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
+              </div>
+
+              <aside className="opportunity-side">
+                <div><span className="eyebrow">CFP deadline</span><strong>{formatDate(item.cfp.closesAt)}</strong><span>{item.existingSubmission ? `Submission: ${item.existingSubmission.status}` : "No submission yet"}</span></div>
+                <div><span className="eyebrow">Event</span><strong>{formatDate(item.event.startsAt)}</strong><span>{locationLabel(item.event.city, item.event.country)}</span></div>
+                <CreateSubmissionDraftButton cfpId={item.cfp.id} talkId={item.talk.id} disabled={Boolean(item.existingSubmission)} />
+                {item.cfp.submissionUrl && <a className="button ghost" href={item.cfp.submissionUrl} target="_blank" rel="noreferrer">Open CFP ↗</a>}
+              </aside>
+            </article>
+          ))}
         </div>
       </section>
     </div>
