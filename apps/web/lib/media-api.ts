@@ -1,3 +1,5 @@
+import { serverFetch } from "@/lib/server-api";
+
 export type MediaSegment = { startMs: number; endMs: number; text: string };
 export type MediaAsset = {
   id: string; projectId: string; contentAssetId: string; title: string; sourcePath: string; sourceUrl: string;
@@ -10,13 +12,11 @@ export type MediaClip = {
   outputPath: string; metadata: Record<string, unknown>; createdAt: string; updatedAt: string;
 };
 
-const apiURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
-
 export async function getMediaData(): Promise<{ assets: MediaAsset[]; clips: MediaClip[]; connected: boolean }> {
   try {
     const [assetsResponse, clipsResponse] = await Promise.all([
-      fetch(`${apiURL}/api/v1/media-assets?limit=200`, { cache: "no-store", signal: AbortSignal.timeout(3000) }),
-      fetch(`${apiURL}/api/v1/media-clips`, { cache: "no-store", signal: AbortSignal.timeout(3000) })
+      serverFetch("/api/v1/media-assets?limit=200", { signal: AbortSignal.timeout(3000) }),
+      serverFetch("/api/v1/media-clips", { signal: AbortSignal.timeout(3000) })
     ]);
     if (!assetsResponse.ok || !clipsResponse.ok) return { assets: [], clips: [], connected: false };
     return { assets: await assetsResponse.json(), clips: await clipsResponse.json(), connected: true };

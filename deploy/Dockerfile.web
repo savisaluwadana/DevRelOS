@@ -3,7 +3,7 @@ WORKDIR /app
 COPY apps/web/package.json ./package.json
 RUN npm install
 COPY apps/web ./
-ARG NEXT_PUBLIC_API_URL=http://localhost:8080
+ARG NEXT_PUBLIC_API_URL=/api/devrelos
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN npm run build
 

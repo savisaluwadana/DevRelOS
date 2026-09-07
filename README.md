@@ -1,6 +1,6 @@
 # DevRelOS
 
-DevRelOS is an open developer-relations operating system for discovering developer pain points, finding speaking and content opportunities, managing community relationships, running DevRel workflows, and measuring outcomes from one place.
+DevRelOS is an open developer-relations operating system for discovering developer pain points, finding speaking and content opportunities, managing community relationships, running DevRel workflows, repurposing media, and measuring outcomes from one place.
 
 The product is designed around three loops:
 
@@ -8,141 +8,125 @@ The product is designed around three loops:
 2. **Engage** — plan talks, outreach, community activity, content, demos, office hours and campaigns.
 3. **Measure** — connect activity to developer engagement, community growth, product feedback and business outcomes.
 
-## Current MVP
+## Current beta
 
-The first working vertical slice is now being implemented around the event and speaking workflow:
+The repository now contains a runnable self-hosted beta with:
 
-- PostgreSQL workspace/project foundation
-- events and CFPs
-- talk library
-- submission pipeline and status transitions
-- community opportunity records and speaking-fit scores
-- dashboard scorecard
-- connector/provider contract
-- developers.events provider with explicit licensing policy
-- Go API and worker runtimes
+- PostgreSQL workspace/project foundation and tracked migrations
+- events, CFPs, talk library and submission workflows
+- community opportunities, contacts, relationships, touchpoints and approval-gated outreach
+- connector scheduling and run telemetry
+- Signal Radar and pain-point clustering
+- work-item automation and Content Studio
+- developer feedback/product-learning workflow
+- Media Studio with transcript import, clip approval and FFmpeg rendering
+- authenticated MCP server integration over the domain API
 - Next.js operator dashboard
+- Go API and background worker
+- Docker Compose startup and full-stack CI smoke tests
 
 ## Product surfaces
 
-- **Command Center** — priorities, deadlines, tasks, activity feed and DevRel scorecard.
-- **Signal Radar** — Reddit, X, Bluesky, Hacker News, GitHub, RSS/web and other source adapters.
-- **Topic & Pain-Point Intelligence** — cluster signals, track trends, evidence and developer questions.
-- **Events & CFPs** — event discovery, CFP deadlines, submission pipeline, talk library and calendar.
-- **Community Graph** — CNCF/Open Community Groups, local meetups, organizers, relationships and outreach pipeline.
-- **Content Studio** — briefs, articles, social posts, demos, newsletters, clips and repurposing workflows.
-- **Developer Feedback** — support themes, docs friction, feature requests and product feedback routing.
-- **Campaigns** — launches, webinars, workshops, hackathons, community calls and partner activities.
-- **Analytics** — activity, reach, engagement, developer activation, acceptance rates and attributable outcomes.
-- **Automation & MCP** — MCP tools/resources, webhooks, scheduled jobs and pluggable workflow runners.
+- **Command Center** — priorities, deadlines, activity and DevRel scorecard.
+- **Signal Radar** — developer signals from pluggable providers such as GitHub, Bluesky, Hacker News and RSS.
+- **Topic & Pain-Point Intelligence** — evidence-backed recurring problems and trends.
+- **Events & CFPs** — discovery, deadlines, talk library and submission pipeline.
+- **Community Graph & Outreach** — communities, organizers, relationships, touchpoints and human-approved outreach.
+- **Content Studio** — briefs, drafts, publishing workflow and repurposing.
+- **Media Studio** — recording metadata, transcripts, clip candidates and FFmpeg rendering.
+- **Developer Feedback** — convert community evidence into product feedback and follow-up.
+- **Automation & MCP** — scheduled connectors plus authenticated agent/IDE domain tools.
 
 ## Repository layout
 
 ```text
 apps/
-  web/                 Next.js operator dashboard
+  web/                 Next.js operator dashboard and same-origin API proxy
 services/
-  api/                 Go REST API
-  worker/              connector/background worker
-  mcp/                 MCP server (next implementation tranche)
+  api/                 Go domain REST API
+  worker/              connector/background/media worker
+  mcp/                 MCP server
 internal/
   connectors/          provider contracts and registry
-  domain/events/       event/CFP/talk/community models
+  domain/              DevRel domain models
+  intelligence/        scoring, clustering and workflow logic
   providers/           external source adapters
-  storage/             PostgreSQL repository
-migrations/            PostgreSQL schema
+  storage/             PostgreSQL repositories
+migrations/            tracked PostgreSQL schema
 ```
 
-PostgreSQL is the system of record. Redis can be added later for short-lived queues/cache. Object storage will hold media and exports. Search/vector capabilities should be introduced behind interfaces rather than becoming the source of truth.
+PostgreSQL is the system of record. Optional cache/queue, object storage and dedicated search infrastructure should be introduced only when scale requires them rather than becoming parallel sources of truth.
 
 ## Run locally
 
 Requirements:
 
-- Go 1.24+
-- Node.js compatible with Next.js 16
-- Docker
-- PostgreSQL client (`psql`) for the current migration command
+- Docker with Compose v2
+- Go 1.25+ for native Go development
+- Node.js 22+ for native web development
+
+Start the full stack:
 
 ```bash
 cp .env.example .env
-set -a && source .env && set +a
-
-make db-up
-make migrate
+make up
 ```
 
-Start the API:
+Open `http://localhost:3000`.
 
-```bash
-make api
-```
-
-Start the web dashboard in another terminal:
-
-```bash
-make web-install
-make web
-```
-
-Then open `http://localhost:3000`.
-
-The API listens on `http://localhost:8080` by default. Useful endpoints include:
+Health/readiness endpoints:
 
 ```text
-GET    /healthz
-GET    /api/v1/dashboard
-GET    /api/v1/events
-POST   /api/v1/events
-GET    /api/v1/cfps
-POST   /api/v1/cfps
-GET    /api/v1/talks
-POST   /api/v1/talks
-GET    /api/v1/submissions
-POST   /api/v1/submissions
-PATCH  /api/v1/submissions/{id}/status
-GET    /api/v1/communities
-POST   /api/v1/communities
+http://localhost:8080/healthz
+http://localhost:8080/readyz
 ```
 
-Start the worker separately:
+Useful commands:
 
 ```bash
-make worker
+make ps
+make logs
+make down
 ```
 
-For a bounded connectivity check against the developers.events provider:
+See [Running DevRelOS](docs/RUNNING.md) for native development, Media Studio and MCP instructions.
 
-```bash
-DEVRELOS_DEMO_FETCH_DEVELOPERS_EVENTS=1 make worker
+## Secure operator mode
+
+Local development can run without authentication. For a shared/self-hosted operator deployment, configure a long random API token and require it:
+
+```text
+DEVRELOS_API_TOKEN=<secret managed outside git>
+DEVRELOS_REQUIRE_AUTH=true
 ```
 
-This fetch mode does not automatically redistribute or persist the remote dataset. The provider policy marks the source as not approved for commercial redistribution by default because developers.events content/data is licensed separately from its code.
+The Next.js server forwards that bearer token to the Go API; the token is never exposed through a `NEXT_PUBLIC_*` environment variable. Optional `DEVRELOS_WEB_USERNAME` and `DEVRELOS_WEB_PASSWORD` protect the operator console with HTTP Basic authentication until full multi-user identity/RBAC is implemented.
+
+PostgreSQL and the Go API bind to localhost in the default Compose deployment. Put TLS and a trusted reverse proxy in front of the web service before exposing DevRelOS across a network.
+
+See [Security](docs/SECURITY.md) for the current trust model and production boundary.
 
 ## Design principles
 
 - Provider interfaces instead of hard-coded scrapers.
-- Store source provenance and fetched-at timestamps for every external signal.
+- Store source provenance and fetched-at timestamps for external evidence.
 - Respect API terms, robots directives, rate limits and content licensing.
-- Human approval for outbound outreach in the first releases.
-- Make automation observable: every run has inputs, outputs, logs, cost and status.
-- MCP exposes domain actions, not direct database access.
-- Keep the core useful without an LLM; AI enhances prioritization, clustering and drafting.
+- Human approval for outbound outreach.
+- Make automation observable: runs have inputs, outputs, cost and status.
+- MCP exposes domain actions rather than direct database access.
+- Keep the core useful without an LLM; AI should enhance prioritization, clustering and drafting.
+- Scope writes to the active project/workspace on the server rather than trusting IDs supplied by a client.
 
 ## Key docs
 
 - [Product scope](docs/PRODUCT.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Integrations and data sources](docs/INTEGRATIONS.md)
+- [Running DevRelOS](docs/RUNNING.md)
+- [Security](docs/SECURITY.md)
+- [MCP](docs/MCP.md)
 - [Delivery roadmap](docs/ROADMAP.md)
 
-## Next implementation tranche
+## Next production tranche
 
-1. Apply migrations automatically or via a dedicated migration binary.
-2. Add CRUD/detail views for events, CFPs, talks and communities in the web app.
-3. Add connector persistence, scheduled runs, source records and run telemetry.
-4. Normalize developers.events imports behind the policy gate.
-5. Add OCG/CNCF community ingestion and relationship/touchpoint workflows.
-6. Add approval-gated outreach drafts.
-7. Build Signal Radar providers and pain-point clustering.
-8. Add the MCP server over domain APIs.
+The current secure operator mode is intentionally not a substitute for a multi-user SaaS identity layer. The next hardening work should add user/session authentication, workspace membership and RBAC, encrypted connector secret storage, remote object storage and backup/restore, TLS/reverse-proxy deployment templates, structured observability, and horizontal worker coordination.

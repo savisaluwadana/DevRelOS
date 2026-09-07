@@ -1,5 +1,6 @@
 import type { CFP, Community, Event, Submission, Talk } from "@/lib/api";
 import type { Relationship } from "@/lib/outreach-api";
+import { serverFetch } from "@/lib/server-api";
 
 export type OpportunityScoreBreakdown = {
   topicFit: number;
@@ -39,14 +40,9 @@ export type CFPOpportunity = {
   existingSubmission?: Submission;
 };
 
-const apiURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
-
 async function getJSON<T>(path: string): Promise<T | null> {
   try {
-    const response = await fetch(`${apiURL}${path}`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(3000)
-    });
+    const response = await serverFetch(path, { signal: AbortSignal.timeout(3000) });
     if (!response.ok) return null;
     return (await response.json()) as T;
   } catch {

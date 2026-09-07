@@ -33,7 +33,8 @@ func (a *api) createMediaAsset(w http.ResponseWriter, r *http.Request) {
 	if input.Title == "" { writeBadRequest(w, "title is required"); return }
 	if input.SourcePath == "" && input.SourceURL == "" { writeBadRequest(w, "sourcePath or sourceUrl is required"); return }
 	if input.MediaType != "" && input.MediaType != "video" && input.MediaType != "audio" { writeBadRequest(w, "invalid mediaType"); return }
-	if input.ProjectID == "" { input.ProjectID, _ = a.projectID(r) }
+	projectID, err := a.projectID(r); if err != nil { writeError(w, err); return }
+	input.ProjectID = projectID
 	created, err := a.store.CreateMediaAsset(r.Context(), input)
 	if err != nil { writeError(w, err); return }
 	writeJSON(w, http.StatusCreated, created)
@@ -66,7 +67,8 @@ func (a *api) createMediaClip(w http.ResponseWriter, r *http.Request) {
 	if input.StartMS < 0 || input.EndMS <= input.StartMS { writeBadRequest(w, "endMs must be greater than startMs"); return }
 	if input.Score < 0 || input.Score > 100 { writeBadRequest(w, "score must be between 0 and 100"); return }
 	if input.AspectRatio != "" && input.AspectRatio != "9:16" && input.AspectRatio != "1:1" && input.AspectRatio != "16:9" { writeBadRequest(w, "invalid aspectRatio"); return }
-	if input.ProjectID == "" { input.ProjectID, _ = a.projectID(r) }
+	projectID, err := a.projectID(r); if err != nil { writeError(w, err); return }
+	input.ProjectID = projectID
 	created, err := a.store.CreateMediaClip(r.Context(), input)
 	if err != nil { writeError(w, err); return }
 	writeJSON(w, http.StatusCreated, created)

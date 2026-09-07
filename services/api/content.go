@@ -52,14 +52,12 @@ func (a *api) createContentAsset(w http.ResponseWriter, r *http.Request) {
 		writeBadRequest(w, "invalid content status")
 		return
 	}
-	if input.ProjectID == "" {
-		var err error
-		input.ProjectID, err = a.projectID(r)
-		if err != nil {
-			writeError(w, err)
-			return
-		}
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
 	}
+	input.ProjectID = projectID
 	created, err := a.store.CreateContentAsset(r.Context(), input)
 	if err != nil {
 		writeError(w, err)

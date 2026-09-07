@@ -59,14 +59,12 @@ func (a *api) createFeedback(w http.ResponseWriter, r *http.Request) {
 		writeBadRequest(w, "impactScore and frequencyScore must be between 0 and 100")
 		return
 	}
-	if input.ProjectID == "" {
-		var err error
-		input.ProjectID, err = a.projectID(r)
-		if err != nil {
-			writeError(w, err)
-			return
-		}
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
 	}
+	input.ProjectID = projectID
 	created, err := a.store.CreateFeedback(r.Context(), input)
 	if err != nil {
 		writeError(w, err)
