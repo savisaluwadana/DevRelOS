@@ -27,17 +27,11 @@ func (a *api) registerIdentityRoutes(mux *http.ServeMux) {
 func (a *api) identityMe(w http.ResponseWriter, r *http.Request) {
 	act := currentActor(r)
 	workspaceID, err := a.requestWorkspaceID(r)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
+	if err != nil { writeError(w, err); return }
 	role := "owner"
 	if act.Kind == "user" {
 		role, err = a.store.RoleForWorkspace(r.Context(), act.UserID, workspaceID)
-		if err != nil {
-			writeForbidden(w)
-			return
-		}
+		if err != nil { writeForbidden(w); return }
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"kind": act.Kind, "userId": act.UserID, "email": act.Email,
@@ -46,90 +40,72 @@ func (a *api) identityMe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) listIdentityUsers(w http.ResponseWriter, r *http.Request) {
-	if currentActor(r).Kind != "operator" {
-		writeForbidden(w)
-		return
-	}
-	items, err := a.store.ListUsers(r.Context())
-	if err != nil {
-		writeError(w, err)
-		return
-	}
+	workspaceID, err := a.requestWorkspaceID(r)
+	if err != nil { writeError(w, err); return }
+	if !a.requireWorkspaceRole(w, r, workspaceID, "admin") { return }
+	items, err := a.store.ListWorkspaceUsers(r.Context(), workspaceID)
+	if err != nil { writeError(w, err); return }
 	writeJSON(w, http.StatusOK, items)
 }
 
 func (a *api) createIdentityUser(w http.ResponseWriter, r *http.Request) {
-	if currentActor(r).Kind != "operator" {
-		writeForbidden(w)
-		return
+	workspaceID, err := a.requestWorkspaceID(r)
+	if err != nil { writeError(w, err); return }
+	if !a.requireWorkspaceRole(w, r, workspaceID, "admin") { return }
+
+	var input struct {
+		Email       string `json:"email"`
+		DisplayName string `json:"displayName"`
+		Status      string `json:"status"`
+		Role        string `json:"role"`
 	}
-	var input domain.User
-	if err := decodeJSON(r, &input); err != nil {
-		writeBadRequest(w, err.Error())
-		return
-	}
+	if err := decodeJSON(r, &input); err != nil { writeBadRequest(w, err.Error()); return }
 	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
 	input.DisplayName = strings.TrimSpace(input.DisplayName)
-	if input.Email == "" || !strings.Contains(input.Email, "@") {
-		writeBadRequest(w, "valid email is required")
-		return
+	if input.Email == "" || !strings.Contains(input.Email, "@") { writeBadRequest(w, "valid email is required"); return }
+	if input.Status == "" { input.Status = "active" }
+	if input.Status != "active" && input.Status != "disabled" { writeBadRequest(w, "status must be active or disabled"); return }
+	if input.Role == "" { input.Role = "viewer" }
+	if roleRank(input.Role) == 0 { writeBadRequest(w, "role must be owner, admin, editor or viewer"); return }
+	if currentActor(r).Kind == "user" && input.Role == "owner" {
+		currentRole, roleErr := a.store.RoleForWorkspace(r.Context(), currentActor(r).UserID, workspaceID)
+		if roleErr != nil || currentRole != "owner" {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "only an owner can grant owner role"})
+			return
+		}
 	}
-	if input.Status != "" && input.Status != "active" && input.Status != "disabled" {
-		writeBadRequest(w, "status must be active or disabled")
-		return
-	}
-	created, err := a.store.CreateUser(r.Context(), input)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
+
+	created, err := a.store.CreateWorkspaceUser(r.Context(), workspaceID, domain.User{
+		Email: input.Email, DisplayName: input.DisplayName, Status: input.Status,
+	}, input.Role)
+	if err != nil { writeError(w, err); return }
+	act := currentActor(r)
 	_ = a.store.AppendAuditEvent(r.Context(), domain.AuditEvent{
-		ActorKind: "operator", Action: "identity.user_created", ResourceType: "user", ResourceID: created.ID,
-		Metadata: map[string]any{"email": created.Email},
+		WorkspaceID: workspaceID, ActorUserID: act.UserID, ActorKind: auditActorKind(act),
+		Action: "identity.user_provisioned", ResourceType: "user", ResourceID: created.ID,
+		Metadata: map[string]any{"email": created.Email, "role": input.Role},
 	})
 	writeJSON(w, http.StatusCreated, created)
 }
 
 func (a *api) listIdentityMemberships(w http.ResponseWriter, r *http.Request) {
 	workspaceID, err := a.requestWorkspaceID(r)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	if !a.requireWorkspaceRole(w, r, workspaceID, "viewer") {
-		return
-	}
+	if err != nil { writeError(w, err); return }
+	if !a.requireWorkspaceRole(w, r, workspaceID, "viewer") { return }
 	items, err := a.store.ListMemberships(r.Context(), workspaceID)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
+	if err != nil { writeError(w, err); return }
 	writeJSON(w, http.StatusOK, items)
 }
 
 func (a *api) upsertIdentityMembership(w http.ResponseWriter, r *http.Request) {
 	workspaceID, err := a.requestWorkspaceID(r)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	if !a.requireWorkspaceRole(w, r, workspaceID, "admin") {
-		return
-	}
+	if err != nil { writeError(w, err); return }
+	if !a.requireWorkspaceRole(w, r, workspaceID, "admin") { return }
 	var input domain.Membership
-	if err := decodeJSON(r, &input); err != nil {
-		writeBadRequest(w, err.Error())
-		return
-	}
+	if err := decodeJSON(r, &input); err != nil { writeBadRequest(w, err.Error()); return }
 	input.WorkspaceID = workspaceID
-	if strings.TrimSpace(input.UserID) == "" {
-		writeBadRequest(w, "userId is required")
-		return
-	}
-	if roleRank(input.Role) == 0 {
-		writeBadRequest(w, "role must be owner, admin, editor or viewer")
-		return
-	}
+	if strings.TrimSpace(input.UserID) == "" { writeBadRequest(w, "userId is required"); return }
+	if roleRank(input.Role) == 0 { writeBadRequest(w, "role must be owner, admin, editor or viewer"); return }
 	if currentActor(r).Kind == "user" && input.Role == "owner" {
 		currentRole, roleErr := a.store.RoleForWorkspace(r.Context(), currentActor(r).UserID, workspaceID)
 		if roleErr != nil || currentRole != "owner" {
@@ -138,10 +114,7 @@ func (a *api) upsertIdentityMembership(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	created, err := a.store.UpsertMembership(r.Context(), input)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
+	if err != nil { writeError(w, err); return }
 	act := currentActor(r)
 	_ = a.store.AppendAuditEvent(r.Context(), domain.AuditEvent{
 		WorkspaceID: workspaceID, ActorUserID: act.UserID, ActorKind: auditActorKind(act),
@@ -153,49 +126,27 @@ func (a *api) upsertIdentityMembership(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) listIdentityAPIKeys(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("id")
-	if !a.canManageUserKeys(w, r, userID) {
-		return
-	}
+	if !a.canManageUserKeys(w, r, userID) { return }
 	items, err := a.store.ListAPIKeys(r.Context(), userID)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
+	if err != nil { writeError(w, err); return }
 	writeJSON(w, http.StatusOK, items)
 }
 
 func (a *api) createIdentityAPIKey(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("id")
-	if !a.canManageUserKeys(w, r, userID) {
-		return
-	}
+	if !a.canManageUserKeys(w, r, userID) { return }
 	var input struct {
-		Name      string     `json:"name"`
+		Name string `json:"name"`
 		ExpiresAt *time.Time `json:"expiresAt,omitempty"`
 	}
-	if err := decodeJSON(r, &input); err != nil {
-		writeBadRequest(w, err.Error())
-		return
-	}
+	if err := decodeJSON(r, &input); err != nil { writeBadRequest(w, err.Error()); return }
 	input.Name = strings.TrimSpace(input.Name)
-	if input.Name == "" {
-		writeBadRequest(w, "name is required")
-		return
-	}
-	if input.ExpiresAt != nil && input.ExpiresAt.Before(time.Now().UTC()) {
-		writeBadRequest(w, "expiresAt must be in the future")
-		return
-	}
+	if input.Name == "" { writeBadRequest(w, "name is required"); return }
+	if input.ExpiresAt != nil && input.ExpiresAt.Before(time.Now().UTC()) { writeBadRequest(w, "expiresAt must be in the future"); return }
 	plain, prefix, secretHash, err := generateAPIKey()
-	if err != nil {
-		writeError(w, err)
-		return
-	}
+	if err != nil { writeError(w, err); return }
 	item, err := a.store.CreateAPIKey(r.Context(), userID, input.Name, prefix, secretHash, input.ExpiresAt)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
+	if err != nil { writeError(w, err); return }
 	act := currentActor(r)
 	workspaceID, _ := a.requestWorkspaceID(r)
 	_ = a.store.AppendAuditEvent(r.Context(), domain.AuditEvent{
@@ -208,13 +159,8 @@ func (a *api) createIdentityAPIKey(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) revokeIdentityAPIKey(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("id")
-	if !a.canManageUserKeys(w, r, userID) {
-		return
-	}
-	if err := a.store.RevokeAPIKey(r.Context(), userID, r.PathValue("keyId")); err != nil {
-		writeError(w, err)
-		return
-	}
+	if !a.canManageUserKeys(w, r, userID) { return }
+	if err := a.store.RevokeAPIKey(r.Context(), userID, r.PathValue("keyId")); err != nil { writeError(w, err); return }
 	act := currentActor(r)
 	workspaceID, _ := a.requestWorkspaceID(r)
 	_ = a.store.AppendAuditEvent(r.Context(), domain.AuditEvent{
@@ -227,69 +173,43 @@ func (a *api) revokeIdentityAPIKey(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) listAuditEvents(w http.ResponseWriter, r *http.Request) {
 	workspaceID, err := a.requestWorkspaceID(r)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	if !a.requireWorkspaceRole(w, r, workspaceID, "admin") {
-		return
-	}
+	if err != nil { writeError(w, err); return }
+	if !a.requireWorkspaceRole(w, r, workspaceID, "admin") { return }
 	items, err := a.store.ListAuditEvents(r.Context(), workspaceID, intQuery(r, "limit", 100))
-	if err != nil {
-		writeError(w, err)
-		return
-	}
+	if err != nil { writeError(w, err); return }
 	writeJSON(w, http.StatusOK, items)
 }
 
 func (a *api) requireWorkspaceRole(w http.ResponseWriter, r *http.Request, workspaceID, minimum string) bool {
 	act := currentActor(r)
-	if act.Kind == "operator" {
-		return true
-	}
-	if act.Kind != "user" {
-		writeForbidden(w)
-		return false
-	}
+	if act.Kind == "operator" { return true }
+	if act.Kind != "user" { writeForbidden(w); return false }
 	role, err := a.store.RoleForWorkspace(r.Context(), act.UserID, workspaceID)
-	if err != nil || roleRank(role) < roleRank(minimum) {
-		writeForbidden(w)
-		return false
-	}
+	if err != nil || roleRank(role) < roleRank(minimum) { writeForbidden(w); return false }
 	return true
 }
 
 func (a *api) canManageUserKeys(w http.ResponseWriter, r *http.Request, userID string) bool {
 	act := currentActor(r)
-	if act.Kind == "operator" || (act.Kind == "user" && act.UserID == userID) {
-		return true
-	}
+	if act.Kind == "operator" || (act.Kind == "user" && act.UserID == userID) { return true }
 	workspaceID, err := a.requestWorkspaceID(r)
-	if err != nil || !a.requireWorkspaceRole(w, r, workspaceID, "admin") {
-		return false
-	}
+	if err != nil || !a.requireWorkspaceRole(w, r, workspaceID, "admin") { return false }
 	return true
 }
 
 func generateAPIKey() (plain, prefix, secretHash string, err error) {
 	secret := make([]byte, 32)
-	if _, err = rand.Read(secret); err != nil {
-		return "", "", "", err
-	}
+	if _, err = rand.Read(secret); err != nil { return "", "", "", err }
 	plain = "drk_" + base64.RawURLEncoding.EncodeToString(secret)
 	prefix = plain
-	if len(prefix) > 12 {
-		prefix = prefix[:12]
-	}
+	if len(prefix) > 12 { prefix = prefix[:12] }
 	hash := sha256.Sum256([]byte(plain))
 	secretHash = hex.EncodeToString(hash[:])
 	return plain, prefix, secretHash, nil
 }
 
 func auditActorKind(act actor) string {
-	if act.Kind == "user" {
-		return "user"
-	}
+	if act.Kind == "user" { return "user" }
 	return "operator"
 }
 
