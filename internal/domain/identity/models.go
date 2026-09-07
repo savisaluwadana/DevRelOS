@@ -46,6 +46,7 @@ type AuditEvent struct {
 	WorkspaceID  string         `json:"workspaceId"`
 	ActorUserID  string         `json:"actorUserId"`
 	ActorKind    string         `json:"actorKind"`
+	ActorEmail   string         `json:"actorEmail"`
 	Action       string         `json:"action"`
 	ResourceType string         `json:"resourceType"`
 	ResourceID   string         `json:"resourceId"`
