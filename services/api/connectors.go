@@ -42,14 +42,12 @@ func (a *api) createConnector(w http.ResponseWriter, r *http.Request) {
 		writeBadRequest(w, "scheduleMinutes must be between 15 and 10080 minutes")
 		return
 	}
-	if input.WorkspaceID == "" {
-		var err error
-		input.WorkspaceID, err = a.workspaceID(r)
-		if err != nil {
-			writeError(w, err)
-			return
-		}
+	workspaceID, err := a.workspaceID(r)
+	if err != nil {
+		writeError(w, err)
+		return
 	}
+	input.WorkspaceID = workspaceID
 	created, err := a.store.CreateConnector(r.Context(), input)
 	if err != nil {
 		writeError(w, err)
@@ -87,7 +85,12 @@ func (a *api) updateConnectorSchedule(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) listConnectorRuns(w http.ResponseWriter, r *http.Request) {
-	items, err := a.store.ListConnectorRuns(r.Context(), r.PathValue("id"))
+	workspaceID, err := a.workspaceID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	items, err := a.store.ListConnectorRunsForWorkspace(r.Context(), workspaceID, r.PathValue("id"))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -96,7 +99,12 @@ func (a *api) listConnectorRuns(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) queueConnectorRun(w http.ResponseWriter, r *http.Request) {
-	run, err := a.store.QueueConnectorRun(r.Context(), r.PathValue("id"))
+	workspaceID, err := a.workspaceID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	run, err := a.store.QueueConnectorRunForWorkspace(r.Context(), workspaceID, r.PathValue("id"))
 	if err != nil {
 		writeError(w, err)
 		return
