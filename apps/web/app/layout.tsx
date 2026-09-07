@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
+import { SessionLogout } from "@/components/session-login";
 import "./globals.css";
 import "./manage.css";
 import "./signals.css";
@@ -28,10 +30,23 @@ const nav = [
   { label: "Outreach", href: "/outreach" },
   { label: "Feedback", href: "/feedback" },
   { label: "Integrations", href: "/integrations" },
-  { label: "Access & Security", href: "/access" }
+  { label: "Access & Security", href: "/access", adminOnly: true }
 ];
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const requestHeaders = await headers();
+  const loginPage = requestHeaders.get("x-devrelos-login-page") === "1";
+  const sessionsEnabled = (process.env.DEVRELOS_WEB_SESSIONS ?? "").toLowerCase() === "true";
+  const role = requestHeaders.get("x-devrelos-user-role") ?? "";
+  const email = requestHeaders.get("x-devrelos-user-email") ?? "";
+  const displayName = requestHeaders.get("x-devrelos-user-display-name") ?? "";
+  const canAdmin = !sessionsEnabled || role === "owner" || role === "admin";
+  const visibleNav = nav.filter((item) => !item.adminOnly || canAdmin);
+
+  if (loginPage) {
+    return <html lang="en"><body><main className="login-shell">{children}</main></body></html>;
+  }
+
   return (
     <html lang="en">
       <body>
@@ -42,13 +57,22 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               <div><strong>DevRelOS</strong><span>Operator Console</span></div>
             </a>
             <nav className="nav-list" aria-label="Primary">
-              {nav.map((item, index) => (
+              {visibleNav.map((item, index) => (
                 <a className={index === 0 ? "nav-item active" : "nav-item"} href={item.href} key={item.label}>
                   <span className="nav-dot" />{item.label}
                 </a>
               ))}
             </nav>
-            <div className="sidebar-footer"><span className="status-dot" />Local workspace</div>
+            <div className="sidebar-footer session-footer">
+              <div className="session-identity">
+                <span className="status-dot" />
+                <div>
+                  <strong>{sessionsEnabled ? (displayName || email || "Signed in") : "Operator mode"}</strong>
+                  <span>{sessionsEnabled ? role : "Local workspace"}</span>
+                </div>
+              </div>
+              {sessionsEnabled ? <SessionLogout /> : null}
+            </div>
           </aside>
           <main className="main-panel">{children}</main>
         </div>
