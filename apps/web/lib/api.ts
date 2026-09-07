@@ -85,6 +85,7 @@ export type Connector = {
   enabled: boolean;
   config: Record<string, unknown>;
   policy: Record<string, unknown>;
+  secretId?: string;
   scheduleMinutes?: number;
   nextRunAt?: string;
   createdAt: string;
@@ -219,29 +220,12 @@ export async function getSignalRadarData() {
   };
 }
 
-export function formatDate(value?: string): string {
-  if (!value) return "TBD";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "TBD";
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "numeric",
-    year: "numeric"
-  }).format(date);
+export function formatDate(value?: string) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(value));
 }
 
-export function formatDateTime(value?: string): string {
-  if (!value) return "TBD";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "TBD";
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit"
-  }).format(date);
-}
-
-export function locationLabel(city?: string, country?: string): string {
-  return [city, country].filter(Boolean).join(", ") || "Location TBD";
+export function formatDateTime(value?: string) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 }
