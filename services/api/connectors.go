@@ -11,7 +11,7 @@ func (a *api) workspaceID(r *http.Request) (string, error) {
 	if id := strings.TrimSpace(r.URL.Query().Get("workspaceId")); id != "" {
 		return id, nil
 	}
-	return a.store.DefaultWorkspaceID(r.Context())
+	return a.requestWorkspaceID(r)
 }
 
 func (a *api) listConnectors(w http.ResponseWriter, r *http.Request) {
@@ -34,7 +34,10 @@ func (a *api) createConnector(w http.ResponseWriter, r *http.Request) {
 		writeBadRequest(w, err.Error())
 		return
 	}
-	if strings.TrimSpace(input.Provider) == "" || strings.TrimSpace(input.Name) == "" {
+	input.Provider = strings.TrimSpace(input.Provider)
+	input.Name = strings.TrimSpace(input.Name)
+	input.SecretID = strings.TrimSpace(input.SecretID)
+	if input.Provider == "" || input.Name == "" {
 		writeBadRequest(w, "provider and name are required")
 		return
 	}
@@ -46,6 +49,11 @@ func (a *api) createConnector(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, err)
 		return
+	}
+	if input.SecretID != "" {
+		belongs, belongsErr := a.store.ConnectorSecretBelongs(r.Context(), workspaceID, input.SecretID, input.Provider)
+		if belongsErr != nil { writeError(w, belongsErr); return }
+		if !belongs { writeBadRequest(w, "secret does not belong to this workspace/provider"); return }
 	}
 	input.WorkspaceID = workspaceID
 	created, err := a.store.CreateConnector(r.Context(), input)
