@@ -52,8 +52,6 @@ func main() {
 	a.registerSignalRoutes(mux)
 	a.registerOutreachRoutes(mux)
 	a.registerWorkItemRoutes(mux)
-	a.registerContentRoutes(mux)
-	a.registerFeedbackRoutes(mux)
 	a.registerMediaRoutes(mux)
 
 	addr := envOr("DEVRELOS_HTTP_ADDR", ":8080")
