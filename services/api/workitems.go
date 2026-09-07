@@ -64,14 +64,12 @@ func (a *api) createWorkItem(w http.ResponseWriter, r *http.Request) {
 		writeBadRequest(w, "invalid work item sourceType")
 		return
 	}
-	if input.ProjectID == "" {
-		var err error
-		input.ProjectID, err = a.projectID(r)
-		if err != nil {
-			writeError(w, err)
-			return
-		}
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
 	}
+	input.ProjectID = projectID
 	created, err := a.store.CreateWorkItem(r.Context(), input)
 	if err != nil {
 		writeError(w, err)
