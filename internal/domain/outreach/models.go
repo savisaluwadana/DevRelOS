@@ -60,3 +60,23 @@ type Outreach struct {
 	CreatedAt     time.Time  `json:"createdAt"`
 	UpdatedAt     time.Time  `json:"updatedAt"`
 }
+
+type Delivery struct {
+	ID            string     `json:"id"`
+	OutreachID    string     `json:"outreachId"`
+	ProjectID     string     `json:"projectId"`
+	Transport     string     `json:"transport"`
+	Status        string     `json:"status"`
+	AttemptCount  int        `json:"attemptCount"`
+	MessageID     string     `json:"messageId"`
+	LastError     string     `json:"lastError"`
+	RecipientName string     `json:"recipientName"`
+	RecipientEmail string    `json:"recipientEmail"`
+	Subject       string     `json:"subject"`
+	Body          string     `json:"body"`
+	QueuedAt      time.Time  `json:"queuedAt"`
+	NextAttemptAt time.Time  `json:"nextAttemptAt"`
+	SentAt        *time.Time `json:"sentAt,omitempty"`
+	CreatedAt     time.Time  `json:"createdAt"`
+	UpdatedAt     time.Time  `json:"updatedAt"`
+}
