@@ -1,3 +1,4 @@
+import { PainPointFeedbackAction } from "@/components/feedback-actions";
 import { EvidenceButton, RebuildPainPointsButton, SignalCaptureForm, SignalStatus } from "@/components/signal-radar-actions";
 import { PainPointWorkActions } from "@/components/work-actions";
 import { formatDateTime, getSignalRadarData } from "@/lib/api";
@@ -14,9 +15,9 @@ export default async function SignalsPage() {
         <div>
           <span className="eyebrow">Signal Radar</span>
           <h1>Turn developer conversation into evidence-backed priorities.</h1>
-          <p>Capture developer friction, cluster recurring pain points, inspect the source evidence and convert the strongest findings into trackable DevRel work.</p>
+          <p>Capture developer friction, cluster recurring pain points, inspect the source evidence and convert the strongest findings into trackable DevRel work or product feedback.</p>
         </div>
-        <div className="form-action-row"><a className="button ghost" href="/work">Action Queue →</a><RebuildPainPointsButton /></div>
+        <div className="form-action-row"><a className="button ghost" href="/feedback">Product Feedback</a><a className="button ghost" href="/work">Action Queue →</a><RebuildPainPointsButton /></div>
       </header>
 
       {!data.connected && (
@@ -53,6 +54,7 @@ export default async function SignalsPage() {
             </div>
             <EvidenceButton painPointId={painPoint.id} count={painPoint.evidenceCount} />
             <PainPointWorkActions painPointId={painPoint.id} />
+            <PainPointFeedbackAction painPointId={painPoint.id} />
           </article>
         ))}
       </section>
