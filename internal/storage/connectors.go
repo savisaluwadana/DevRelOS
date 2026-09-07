@@ -108,23 +108,24 @@ func (s *Store) QueueConnectorRun(ctx context.Context, connectorID string) (doma
 	return run, err
 }
 
-func (s *Store) UpsertSourceRecord(ctx context.Context, item domain.SourceRecord) (domain.SourceRecord, error) {
+func (s *Store) UpsertSourceRecord(ctx context.Context, item domain.SourceRecord) (domain.SourceRecord, bool, error) {
 	if item.Provenance == nil {
 		item.Provenance = map[string]any{}
 	}
 	provenanceJSON, err := json.Marshal(item.Provenance)
 	if err != nil {
-		return item, err
+		return item, false, err
 	}
 	var payload any
 	if item.RawPayload != nil {
 		rawJSON, marshalErr := json.Marshal(item.RawPayload)
 		if marshalErr != nil {
-			return item, marshalErr
+			return item, false, marshalErr
 		}
 		payload = rawJSON
 	}
 
+	var inserted bool
 	err = s.pool.QueryRow(ctx, `
 		INSERT INTO source_records (workspace_id, provider, external_id, canonical_url, source_timestamp, content_hash, raw_payload, provenance)
 		VALUES ($1,$2,NULLIF($3,''),NULLIF($4,''),$5,NULLIF($6,''),$7,$8::jsonb)
@@ -135,8 +136,8 @@ func (s *Store) UpsertSourceRecord(ctx context.Context, item domain.SourceRecord
 		              content_hash=EXCLUDED.content_hash,
 		              raw_payload=EXCLUDED.raw_payload,
 		              provenance=EXCLUDED.provenance
-		RETURNING id::text, fetched_at`,
+		RETURNING id::text, fetched_at, (xmax = 0)`,
 		item.WorkspaceID, item.Provider, item.ExternalID, item.CanonicalURL, item.SourceTimestamp,
-		item.ContentHash, payload, provenanceJSON).Scan(&item.ID, &item.FetchedAt)
-	return item, err
+		item.ContentHash, payload, provenanceJSON).Scan(&item.ID, &item.FetchedAt, &inserted)
+	return item, inserted, err
 }
