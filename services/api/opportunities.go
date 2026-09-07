@@ -37,8 +37,8 @@ func (a *api) listSpeakingOpportunities(w http.ResponseWriter, r *http.Request) 
 	}
 
 	items := opportunities.RankSpeaking(communities, talks, relationships, outreachItems, time.Now().UTC())
-	minScore := intQuery(r, "minScore", 0, 0, 100)
-	limit := intQuery(r, "limit", 50, 1, 200)
+	minScore := boundedIntQuery(r, "minScore", 0, 0, 100)
+	limit := boundedIntQuery(r, "limit", 50, 1, 200)
 
 	filtered := make([]opportunities.SpeakingOpportunity, 0, min(limit, len(items)))
 	for _, item := range items {
@@ -82,8 +82,8 @@ func (a *api) listCFPOpportunities(w http.ResponseWriter, r *http.Request) {
 	}
 
 	items := opportunities.RankCFPs(cfps, eventsList, talks, submissions, time.Now().UTC())
-	minScore := intQuery(r, "minScore", 0, 0, 100)
-	limit := intQuery(r, "limit", 50, 1, 200)
+	minScore := boundedIntQuery(r, "minScore", 0, 0, 100)
+	limit := boundedIntQuery(r, "limit", 50, 1, 200)
 	filtered := make([]opportunities.CFPOpportunity, 0, min(limit, len(items)))
 	for _, item := range items {
 		if item.Score < minScore {
@@ -97,7 +97,7 @@ func (a *api) listCFPOpportunities(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, filtered)
 }
 
-func intQuery(r *http.Request, key string, fallback, minValue, maxValue int) int {
+func boundedIntQuery(r *http.Request, key string, fallback, minValue, maxValue int) int {
 	value := r.URL.Query().Get(key)
 	if value == "" {
 		return fallback
