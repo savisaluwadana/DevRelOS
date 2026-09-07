@@ -10,9 +10,11 @@ import "./opportunities.css";
 import "./work.css";
 import "./content.css";
 import "./feedback.css";
+import "./feedback-github.css";
 import "./media.css";
 import "./access.css";
 import "./campaigns.css";
+import "./calendar.css";
 
 export const metadata: Metadata = {
   title: "DevRelOS",
@@ -21,6 +23,7 @@ export const metadata: Metadata = {
 
 const nav = [
   { label: "Command Center", href: "/" },
+  { label: "Calendar", href: "/calendar" },
   { label: "Signals", href: "/signals" },
   { label: "Opportunities", href: "/opportunities" },
   { label: "Campaigns & Attribution", href: "/campaigns" },
