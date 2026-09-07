@@ -31,6 +31,29 @@ export type IdentityAPIKey = {
   createdAt: string;
 };
 
+export type WorkspaceInvitation = {
+  id: string;
+  workspaceId: string;
+  email: string;
+  role: MembershipRole;
+  invitedByUserId: string;
+  expiresAt: string;
+  acceptedAt?: string;
+  createdAt: string;
+};
+
+export type ConnectorSecret = {
+  id: string;
+  workspaceId: string;
+  provider: string;
+  name: string;
+  keyVersion: number;
+  createdByUserId: string;
+  rotatedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AuditEvent = {
   id: string;
   workspaceId: string;
