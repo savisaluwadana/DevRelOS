@@ -8,6 +8,21 @@ The product is designed around three loops:
 2. **Engage** — plan talks, outreach, community activity, content, demos, office hours and campaigns.
 3. **Measure** — connect activity to developer engagement, community growth, product feedback and business outcomes.
 
+## Current MVP
+
+The first working vertical slice is now being implemented around the event and speaking workflow:
+
+- PostgreSQL workspace/project foundation
+- events and CFPs
+- talk library
+- submission pipeline and status transitions
+- community opportunity records and speaking-fit scores
+- dashboard scorecard
+- connector/provider contract
+- developers.events provider with explicit licensing policy
+- Go API and worker runtimes
+- Next.js operator dashboard
+
 ## Product surfaces
 
 - **Command Center** — priorities, deadlines, tasks, activity feed and DevRel scorecard.
@@ -21,28 +36,88 @@ The product is designed around three loops:
 - **Analytics** — activity, reach, engagement, developer activation, acceptance rates and attributable outcomes.
 - **Automation & MCP** — MCP tools/resources, webhooks, scheduled jobs and pluggable workflow runners.
 
-## Proposed architecture
+## Repository layout
 
 ```text
 apps/
   web/                 Next.js operator dashboard
 services/
-  api/                 Go API and domain services
-  worker/              Go ingestion/scoring/background jobs
-  mcp/                 MCP server exposing DevRelOS capabilities
-packages/
-  contracts/           API/event schemas
-  ui/                  shared UI primitives
-  connectors/          connector metadata and shared fixtures
+  api/                 Go REST API
+  worker/              connector/background worker
+  mcp/                 MCP server (next implementation tranche)
 internal/
-  domain/              core Go domain packages
-  providers/           Reddit/X/Bluesky/GitHub/events/community adapters
-  workflows/           automation workflows
-  intelligence/        clustering, ranking, scoring and summarization
-  storage/             PostgreSQL/search/object-store adapters
+  connectors/          provider contracts and registry
+  domain/events/       event/CFP/talk/community models
+  providers/           external source adapters
+  storage/             PostgreSQL repository
+migrations/            PostgreSQL schema
 ```
 
-PostgreSQL is the system of record. Redis can be added for short-lived queues/cache. Object storage holds media and exports. Search/vector capabilities should be introduced behind interfaces rather than becoming the source of truth.
+PostgreSQL is the system of record. Redis can be added later for short-lived queues/cache. Object storage will hold media and exports. Search/vector capabilities should be introduced behind interfaces rather than becoming the source of truth.
+
+## Run locally
+
+Requirements:
+
+- Go 1.24+
+- Node.js compatible with Next.js 16
+- Docker
+- PostgreSQL client (`psql`) for the current migration command
+
+```bash
+cp .env.example .env
+set -a && source .env && set +a
+
+make db-up
+make migrate
+```
+
+Start the API:
+
+```bash
+make api
+```
+
+Start the web dashboard in another terminal:
+
+```bash
+make web-install
+make web
+```
+
+Then open `http://localhost:3000`.
+
+The API listens on `http://localhost:8080` by default. Useful endpoints include:
+
+```text
+GET    /healthz
+GET    /api/v1/dashboard
+GET    /api/v1/events
+POST   /api/v1/events
+GET    /api/v1/cfps
+POST   /api/v1/cfps
+GET    /api/v1/talks
+POST   /api/v1/talks
+GET    /api/v1/submissions
+POST   /api/v1/submissions
+PATCH  /api/v1/submissions/{id}/status
+GET    /api/v1/communities
+POST   /api/v1/communities
+```
+
+Start the worker separately:
+
+```bash
+make worker
+```
+
+For a bounded connectivity check against the developers.events provider:
+
+```bash
+DEVRELOS_DEMO_FETCH_DEVELOPERS_EVENTS=1 make worker
+```
+
+This fetch mode does not automatically redistribute or persist the remote dataset. The provider policy marks the source as not approved for commercial redistribution by default because developers.events content/data is licensed separately from its code.
 
 ## Design principles
 
@@ -61,16 +136,13 @@ PostgreSQL is the system of record. Redis can be added for short-lived queues/ca
 - [Integrations and data sources](docs/INTEGRATIONS.md)
 - [Delivery roadmap](docs/ROADMAP.md)
 
-## Initial build order
+## Next implementation tranche
 
-1. Foundation: auth/workspaces, projects, PostgreSQL, connector framework and job model.
-2. Event + CFP ingestion and submission pipeline.
-3. Signal ingestion and topic/pain-point intelligence.
-4. CNCF/community graph and speaking-outreach pipeline.
-5. Content studio and repurposing jobs.
-6. MCP server and workflow automation.
-7. Analytics, attribution and team operations.
-
-## Status
-
-DevRelOS is at foundation stage. The repository is being structured around a modular monolith first, with clear service boundaries so ingestion workers and the MCP server can be split out when load or security boundaries justify it.
+1. Apply migrations automatically or via a dedicated migration binary.
+2. Add CRUD/detail views for events, CFPs, talks and communities in the web app.
+3. Add connector persistence, scheduled runs, source records and run telemetry.
+4. Normalize developers.events imports behind the policy gate.
+5. Add OCG/CNCF community ingestion and relationship/touchpoint workflows.
+6. Add approval-gated outreach drafts.
+7. Build Signal Radar providers and pain-point clustering.
+8. Add the MCP server over domain APIs.
