@@ -36,6 +36,7 @@ export type AuditEvent = {
   workspaceId: string;
   actorUserId: string;
   actorKind: "user" | "operator" | "system";
+  actorEmail: string;
   action: string;
   resourceType: string;
   resourceId: string;

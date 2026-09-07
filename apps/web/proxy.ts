@@ -1,5 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const sessionCookie = "devrelos_user_token";
+
+type SessionPrincipal = {
+  kind?: string;
+  userId?: string;
+  email?: string;
+  displayName?: string;
+  workspaceId?: string;
+  role?: string;
+};
+
+function secureCookie() {
+  return (process.env.DEVRELOS_SESSION_SECURE_COOKIE ?? "").toLowerCase() === "true";
+}
+
 function equalText(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
@@ -7,20 +22,88 @@ function equalText(a: string, b: string): boolean {
   return diff === 0;
 }
 
-function unauthorized() {
-  return new NextResponse("Authentication required", {
-    status: 401,
-    headers: {
-      "WWW-Authenticate": 'Basic realm="DevRelOS", charset="UTF-8"',
-      "Cache-Control": "no-store",
-      "X-Content-Type-Options": "nosniff",
-      "X-Frame-Options": "DENY",
-      "Referrer-Policy": "no-referrer"
-    }
-  });
+function securityHeaders(response: NextResponse) {
+  response.headers.set("Cache-Control", "no-store");
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("Referrer-Policy", "no-referrer");
+  return response;
 }
 
-export function proxy(request: NextRequest) {
+function unauthorized() {
+  return securityHeaders(new NextResponse("Authentication required", {
+    status: 401,
+    headers: { "WWW-Authenticate": 'Basic realm="DevRelOS", charset="UTF-8"' }
+  }));
+}
+
+function isSessionEndpoint(pathname: string) {
+  return pathname.startsWith("/api/session/");
+}
+
+async function sessionPrincipal(token: string): Promise<SessionPrincipal | null> {
+  const backendURL = process.env.DEVRELOS_API_URL ?? "http://localhost:8080";
+  try {
+    const response = await fetch(`${backendURL}/api/v1/identity/me`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(3000)
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as SessionPrincipal;
+  } catch {
+    return null;
+  }
+}
+
+function clearAndRedirect(request: NextRequest, pathname = "/login") {
+  const response = NextResponse.redirect(new URL(pathname, request.url));
+  response.cookies.set(sessionCookie, "", {
+    httpOnly: true,
+    sameSite: "strict",
+    secure: secureCookie(),
+    path: "/",
+    maxAge: 0
+  });
+  return securityHeaders(response);
+}
+
+function nextWithRequestHeaders(request: NextRequest, values: Record<string, string>) {
+  const requestHeaders = new Headers(request.headers);
+  for (const [key, value] of Object.entries(values)) requestHeaders.set(key, value);
+  return securityHeaders(NextResponse.next({ request: { headers: requestHeaders } }));
+}
+
+export async function proxy(request: NextRequest) {
+  const sessionsEnabled = (process.env.DEVRELOS_WEB_SESSIONS ?? "").toLowerCase() === "true";
+  const pathname = request.nextUrl.pathname;
+
+  if (sessionsEnabled) {
+    if (isSessionEndpoint(pathname)) return securityHeaders(NextResponse.next());
+
+    const token = request.cookies.get(sessionCookie)?.value?.trim() ?? "";
+    if (!token.startsWith("drk_")) {
+      if (pathname === "/login") return nextWithRequestHeaders(request, { "x-devrelos-login-page": "1" });
+      return clearAndRedirect(request);
+    }
+
+    const principal = await sessionPrincipal(token);
+    if (!principal || principal.kind !== "user") return clearAndRedirect(request);
+    if (pathname === "/login") return securityHeaders(NextResponse.redirect(new URL("/", request.url)));
+
+    if (pathname === "/access" && principal.role !== "owner" && principal.role !== "admin") {
+      return securityHeaders(NextResponse.redirect(new URL("/", request.url)));
+    }
+
+    return nextWithRequestHeaders(request, {
+      "x-devrelos-user-id": principal.userId ?? "",
+      "x-devrelos-user-role": principal.role ?? "",
+      "x-devrelos-user-email": principal.email ?? "",
+      "x-devrelos-user-display-name": principal.displayName ?? "",
+      "x-devrelos-workspace-id": principal.workspaceId ?? ""
+    });
+  }
+
   const username = process.env.DEVRELOS_WEB_USERNAME?.trim() ?? "";
   const password = process.env.DEVRELOS_WEB_PASSWORD ?? "";
 
@@ -41,12 +124,7 @@ export function proxy(request: NextRequest) {
     if (!equalText(suppliedUser, username) || !equalText(suppliedPassword, password)) return unauthorized();
   }
 
-  const response = NextResponse.next();
-  response.headers.set("Cache-Control", "no-store");
-  response.headers.set("X-Content-Type-Options", "nosniff");
-  response.headers.set("X-Frame-Options", "DENY");
-  response.headers.set("Referrer-Policy", "no-referrer");
-  return response;
+  return securityHeaders(NextResponse.next());
 }
 
 export const config = {
