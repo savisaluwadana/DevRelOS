@@ -65,6 +65,7 @@ func main() {
 	a.registerIdentityRoutes(mux)
 	a.registerSessionRoutes(mux)
 	a.registerSecretRoutes(mux)
+	a.registerCampaignRoutes(mux)
 
 	addr := envOr("DEVRELOS_HTTP_ADDR", ":8080")
 	core := a.withAuth(mux)

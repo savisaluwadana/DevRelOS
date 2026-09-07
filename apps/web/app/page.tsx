@@ -1,4 +1,5 @@
 import { formatDate, getDashboard, locationLabel } from "@/lib/api";
+import { getCampaignData, getRelationshipRadar } from "@/lib/campaign-api";
 
 function Metric({ label, value, note }: { label: string; value: number | string; note: string }) {
   return (
@@ -11,10 +12,18 @@ function Metric({ label, value, note }: { label: string; value: number | string;
 }
 
 export default async function Home() {
-  const dashboard = await getDashboard();
+  const [dashboard, campaignData, relationshipData] = await Promise.all([
+    getDashboard(),
+    getCampaignData(),
+    getRelationshipRadar()
+  ]);
   const highFit = dashboard?.highFitCfps ?? [];
   const upcoming = dashboard?.upcomingEvents ?? [];
   const communities = dashboard?.communityOpportunities ?? [];
+  const activeCampaigns = campaignData.campaigns.filter((campaign) => campaign.status === "active").length;
+  const campaignOutcome = campaignData.reports.length === 0 ? 0 : Math.round(campaignData.reports.reduce((sum, report) => sum + report.outcomeScore, 0) / campaignData.reports.length);
+  const criticalRelationships = relationshipData.items.filter((item) => item.health === "critical").length;
+  const overdueFollowUps = relationshipData.items.filter((item) => item.nextFollowUpAt && new Date(item.nextFollowUpAt).getTime() < Date.now()).length;
 
   return (
     <div className="page-wrap">
@@ -22,18 +31,18 @@ export default async function Home() {
         <div>
           <span className="eyebrow">Command Center</span>
           <h1>Run developer relations like an operating system.</h1>
-          <p>Prioritize the opportunities, relationships and deadlines that can move the program forward.</p>
+          <p>Prioritize opportunities, relationships, campaigns and deadlines—and connect the work back to outcomes.</p>
         </div>
         <div className="topbar-actions">
-          <button className="button ghost">⌘ K Search</button>
-          <button className="button primary">+ New activity</button>
+          <a className="button ghost" href="/campaigns">Campaigns</a>
+          <a className="button primary" href="/work">+ New activity</a>
         </div>
       </header>
 
       {!dashboard && (
         <div className="notice">
           <strong>API is not connected yet.</strong>
-          <span>Start PostgreSQL, run the migration and launch the Go API to populate this dashboard.</span>
+          <span>Start PostgreSQL, run the migrations and launch the Go API to populate this dashboard.</span>
         </div>
       )}
 
@@ -44,6 +53,13 @@ export default async function Home() {
         <Metric label="Accepted" value={dashboard?.acceptedTalks ?? 0} note="Confirmed speaking outcomes" />
       </section>
 
+      <section className="metrics-grid impact-metrics" aria-label="Impact and relationship scorecard">
+        <Metric label="Active campaigns" value={activeCampaigns} note="initiatives currently executing" />
+        <Metric label="Outcome score" value={campaignOutcome} note="average attributed campaign outcome /100" />
+        <Metric label="Critical relationships" value={criticalRelationships} note="relationships at high risk" />
+        <Metric label="Overdue follow-ups" value={overdueFollowUps} note="relationship commitments due now" />
+      </section>
+
       <section className="dashboard-grid">
         <div className="panel span-two">
           <div className="panel-head">
@@ -51,7 +67,7 @@ export default async function Home() {
               <span className="eyebrow">CFP Intelligence</span>
               <h2>High-fit opportunities</h2>
             </div>
-            <button className="text-button">View pipeline →</button>
+            <a className="text-button" href="/opportunities">View pipeline →</a>
           </div>
           <div className="table-wrap">
             <table>
@@ -92,16 +108,29 @@ export default async function Home() {
             </div>
           </div>
           <div className="priority-list">
+            {criticalRelationships > 0 || overdueFollowUps > 0 ? (
+              <a className="priority-item urgent" href="/relationships">
+                <span className="priority-kicker">Relationship risk</span>
+                <strong>{criticalRelationships} critical · {overdueFollowUps} overdue</strong>
+                <span>Protect warm community and partner relationships before they go cold.</span>
+              </a>
+            ) : (
+              <div className="priority-item">
+                <span className="priority-kicker">Relationship health</span>
+                <strong>No critical follow-ups</strong>
+                <span>Relationship Radar has no urgent relationship risk right now.</span>
+              </div>
+            )}
             <div className="priority-item urgent">
               <span className="priority-kicker">Deadline risk</span>
               <strong>{dashboard?.closingSoon ?? 0} CFPs closing soon</strong>
               <span>Review fit, finish abstracts and submit before deadlines.</span>
             </div>
-            <div className="priority-item">
-              <span className="priority-kicker">Relationship motion</span>
-              <strong>{communities.length} high-fit communities</strong>
-              <span>Research organizers and prepare human-reviewed speaking pitches.</span>
-            </div>
+            <a className="priority-item" href="/campaigns">
+              <span className="priority-kicker">Impact motion</span>
+              <strong>{activeCampaigns} active campaigns · {campaignOutcome}/100 outcome</strong>
+              <span>Attribute content, outreach and shipped work so program impact remains inspectable.</span>
+            </a>
             <div className="priority-item">
               <span className="priority-kicker">Pipeline health</span>
               <strong>{dashboard?.submissionsInFlight ?? 0} active submissions</strong>
@@ -142,7 +171,7 @@ export default async function Home() {
               <span className="eyebrow">Community Graph</span>
               <h2>Speaking opportunities</h2>
             </div>
-            <button className="text-button">Open communities →</button>
+            <a className="text-button" href="/relationships">Open relationships →</a>
           </div>
           <div className="community-grid">
             {communities.length === 0 ? <p className="empty-copy">No ranked communities yet. Add CNCF/OCG or other community records to begin scoring.</p> : communities.map((community) => (

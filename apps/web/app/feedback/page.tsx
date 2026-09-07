@@ -1,3 +1,4 @@
+import { CampaignAttribution } from "@/components/campaign-attribution";
 import { FeedbackEditor, ManualFeedbackForm } from "@/components/feedback-actions";
 import { feedbackStatusLabels, getFeedbackItems } from "@/lib/feedback-api";
 import { formatDateTime } from "@/lib/api";
@@ -84,7 +85,10 @@ export default async function FeedbackPage() {
 
                   {item.followUpNote && <div className="feedback-follow-up"><span className="eyebrow">Developer follow-up</span><p>{item.followUpNote}</p></div>}
                 </div>
-                <aside className="feedback-card-side"><FeedbackEditor item={item} /></aside>
+                <aside className="feedback-card-side">
+                  <CampaignAttribution entityType="feedback" entityId={item.id} />
+                  <FeedbackEditor item={item} />
+                </aside>
               </article>
             );
           })}
