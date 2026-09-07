@@ -73,12 +73,6 @@ func (s *Store) CreateFeedback(ctx context.Context, item feedbackdomain.Item) (f
 	if item.Status == "" {
 		item.Status = "new"
 	}
-	if item.ImpactScore == 0 {
-		item.ImpactScore = 50
-	}
-	if item.FrequencyScore == 0 {
-		item.FrequencyScore = 50
-	}
 	if item.Metadata == nil {
 		item.Metadata = map[string]any{}
 	}
