@@ -46,6 +46,8 @@ func main() {
 	mux.HandleFunc("POST /api/v1/connectors", a.createConnector)
 	mux.HandleFunc("GET /api/v1/connectors/{id}/runs", a.listConnectorRuns)
 	mux.HandleFunc("POST /api/v1/connectors/{id}/runs", a.queueConnectorRun)
+	mux.HandleFunc("GET /api/v1/opportunities/speaking", a.listSpeakingOpportunities)
+	mux.HandleFunc("GET /api/v1/opportunities/cfps", a.listCFPOpportunities)
 	a.registerSignalRoutes(mux)
 	a.registerOutreachRoutes(mux)
 
