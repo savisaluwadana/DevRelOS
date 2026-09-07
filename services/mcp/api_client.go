@@ -49,6 +49,19 @@ func (c *apiClient) list(ctx context.Context, path string, query url.Values) ([]
 	return out, nil
 }
 
+func (c *apiClient) calendar(ctx context.Context, query url.Values) ([]map[string]any, error) {
+	var out struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/v1/calendar", query, nil, &out); err != nil {
+		return nil, err
+	}
+	if out.Items == nil {
+		out.Items = []map[string]any{}
+	}
+	return out.Items, nil
+}
+
 func (c *apiClient) create(ctx context.Context, path string, body any) (map[string]any, error) {
 	var out map[string]any
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, body, &out); err != nil {
