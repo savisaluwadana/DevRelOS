@@ -18,7 +18,7 @@ const nav = [
   { label: "Feedback", href: "/#feedback" },
   { label: "Analytics", href: "/#analytics" },
   { label: "Automations", href: "/#automations" },
-  { label: "Integrations", href: "/#integrations" }
+  { label: "Integrations", href: "/integrations" }
 ];
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
