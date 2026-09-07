@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 
 const backendURL = process.env.DEVRELOS_API_URL ?? "http://localhost:8080";
+const sessionCookieName = "devrelos_session";
 
 type RouteContext = { params: Promise<{ path: string[] }> };
 
@@ -16,8 +17,13 @@ async function forward(request: NextRequest, context: RouteContext) {
   if (contentType) headers.set("Content-Type", contentType);
   if (accept) headers.set("Accept", accept);
 
-  const token = process.env.DEVRELOS_API_TOKEN?.trim();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const session = request.cookies.get(sessionCookieName)?.value;
+  if (session) {
+    headers.set("Cookie", `${sessionCookieName}=${encodeURIComponent(session)}`);
+  } else {
+    const token = process.env.DEVRELOS_API_TOKEN?.trim();
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+  }
 
   const init: RequestInit = {
     method: request.method,
@@ -33,7 +39,9 @@ async function forward(request: NextRequest, context: RouteContext) {
     const upstream = await fetch(target, init);
     const responseHeaders = new Headers();
     const upstreamType = upstream.headers.get("content-type");
+    const setCookie = upstream.headers.get("set-cookie");
     if (upstreamType) responseHeaders.set("Content-Type", upstreamType);
+    if (setCookie) responseHeaders.set("Set-Cookie", setCookie);
     responseHeaders.set("Cache-Control", "no-store");
     responseHeaders.set("X-Content-Type-Options", "nosniff");
     return new Response(upstream.body, {
