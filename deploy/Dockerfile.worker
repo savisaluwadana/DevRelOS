@@ -1,0 +1,14 @@
+FROM golang:1.24-alpine AS build
+WORKDIR /src
+RUN apk add --no-cache ca-certificates git
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/devrelos-worker ./services/worker
+
+FROM alpine:3.22
+RUN apk add --no-cache ca-certificates ffmpeg tzdata
+COPY --from=build /out/devrelos-worker /usr/local/bin/devrelos-worker
+ENV DEVRELOS_MEDIA_ROOT=/data/media
+ENV DEVRELOS_MEDIA_OUTPUT_ROOT=/data/media/outputs
+ENTRYPOINT ["/usr/local/bin/devrelos-worker"]
