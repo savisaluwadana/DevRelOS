@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	domain "github.com/savisaluwadana/DevRelOS/internal/domain/connectors"
+	"github.com/jackc/pgx/v5"
 )
 
 func (s *Store) DefaultWorkspaceID(ctx context.Context) (string, error) {
@@ -80,7 +81,7 @@ func (s *Store) UpdateConnectorSecret(ctx context.Context, workspaceID, connecto
 		return err
 	}
 	if command.RowsAffected() == 0 {
-		return ErrNotFound
+		return pgx.ErrNoRows
 	}
 	return nil
 }
