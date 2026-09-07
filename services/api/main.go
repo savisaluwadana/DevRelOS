@@ -28,14 +28,15 @@ func main() {
 	}
 	defer store.Close()
 
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("DEVRELOS_REQUIRE_AUTH")), "true") && strings.TrimSpace(os.Getenv("DEVRELOS_API_TOKEN")) == "" {
-		log.Fatal("DEVRELOS_API_TOKEN is required when DEVRELOS_REQUIRE_AUTH=true")
+	a := &api{store: store}
+	if err := a.bootstrapIdentity(ctx); err != nil {
+		log.Fatalf("identity bootstrap: %v", err)
 	}
 
-	a := &api{store: store}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", a.health)
 	mux.HandleFunc("GET /readyz", a.ready)
+	a.registerIdentityRoutes(mux)
 	mux.HandleFunc("GET /api/v1/dashboard", a.dashboard)
 	mux.HandleFunc("GET /api/v1/events", a.listEvents)
 	mux.HandleFunc("POST /api/v1/events", a.createEvent)
@@ -63,7 +64,7 @@ func main() {
 	addr := envOr("DEVRELOS_HTTP_ADDR", ":8080")
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           withMiddleware(withAuth(mux)),
+		Handler:           withMiddleware(a.withAuth(mux)),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
@@ -89,10 +90,18 @@ func (a *api) ready(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) projectID(r *http.Request) (string, error) {
-	if id := strings.TrimSpace(r.URL.Query().Get("projectId")); id != "" {
-		return id, nil
+	id := strings.TrimSpace(r.URL.Query().Get("projectId"))
+	if id == "" {
+		var err error
+		id, err = a.store.DefaultProjectID(r.Context())
+		if err != nil {
+			return "", err
+		}
 	}
-	return a.store.DefaultProjectID(r.Context())
+	if err := a.requireProjectRole(r.Context(), id, roleForMethod(r.Method)); err != nil {
+		return "", err
+	}
+	return id, nil
 }
 
 func (a *api) dashboard(w http.ResponseWriter, r *http.Request) {
@@ -206,12 +215,17 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 
 func writeBadRequest(w http.ResponseWriter, message string) { writeJSON(w, http.StatusBadRequest, map[string]string{"error": message}) }
 func writeError(w http.ResponseWriter, err error) {
-	if errors.Is(err, pgx.ErrNoRows) {
+	switch {
+	case errors.Is(err, errUnauthorized):
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+	case errors.Is(err, errForbidden):
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+	case errors.Is(err, pgx.ErrNoRows):
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
-		return
+	default:
+		log.Printf("request failed: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
-	log.Printf("request failed: %v", err)
-	writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 }
 
 func withMiddleware(next http.Handler) http.Handler {
