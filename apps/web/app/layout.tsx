@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { SessionLogout } from "@/components/session-login";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import "./globals.css";
 import "./manage.css";
 import "./signals.css";
@@ -40,6 +41,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const role = requestHeaders.get("x-devrelos-user-role") ?? "";
   const email = requestHeaders.get("x-devrelos-user-email") ?? "";
   const displayName = requestHeaders.get("x-devrelos-user-display-name") ?? "";
+  const workspaceId = requestHeaders.get("x-devrelos-workspace-id") ?? "";
   const canAdmin = !sessionsEnabled || role === "owner" || role === "admin";
   const visibleNav = nav.filter((item) => !item.adminOnly || canAdmin);
 
@@ -64,6 +66,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               ))}
             </nav>
             <div className="sidebar-footer session-footer">
+              {sessionsEnabled && workspaceId ? <WorkspaceSwitcher currentWorkspaceId={workspaceId} /> : null}
               <div className="session-identity">
                 <span className="status-dot" />
                 <div>
