@@ -24,6 +24,7 @@ import (
 	"github.com/savisaluwadana/DevRelOS/internal/providers/hackernews"
 	"github.com/savisaluwadana/DevRelOS/internal/providers/ocg"
 	"github.com/savisaluwadana/DevRelOS/internal/providers/rss"
+	"github.com/savisaluwadana/DevRelOS/internal/security"
 	"github.com/savisaluwadana/DevRelOS/internal/storage"
 )
 
@@ -49,6 +50,7 @@ func main() {
 	queueScheduledRuns(ctx, store)
 	processAvailable(ctx, store, registry)
 	processAvailableMedia(ctx, store)
+	processAvailableOutreach(ctx, store)
 	ticker := time.NewTicker(pollEvery)
 	defer ticker.Stop()
 
@@ -61,6 +63,7 @@ func main() {
 			queueScheduledRuns(ctx, store)
 			processAvailable(ctx, store, registry)
 			processAvailableMedia(ctx, store)
+			processAvailableOutreach(ctx, store)
 		}
 	}
 }
@@ -96,6 +99,8 @@ func processNext(ctx context.Context, store *storage.Store, registry *connectorr
 	if !connector.Enabled { return fail(fmt.Errorf("connector is disabled")) }
 	provider, ok := registry.Get(connector.Provider)
 	if !ok { return fail(fmt.Errorf("provider %q is not registered in this worker", connector.Provider)) }
+	if err := hydrateConnectorSecret(ctx, store, &connector); err != nil { return fail(err) }
+	if connector.SecretID != "" { defer delete(connector.Config, "token") }
 	if err := provider.ValidateConfig(connector.Config); err != nil { return fail(fmt.Errorf("invalid connector config: %w", err)) }
 
 	policy := provider.Policy(connector.Config)
@@ -175,6 +180,31 @@ func processNext(ctx context.Context, store *storage.Store, registry *connectorr
 	if err := store.FinishConnectorRun(ctx, run); err != nil { return true, err }
 	log.Printf("connector run succeeded id=%s provider=%s fetched=%d created=%d updated=%d skipped=%d cost_usd=%.4f", run.ID, connector.Provider, run.ItemsFetched, run.ItemsCreated, run.ItemsUpdated, run.ItemsSkipped, result.CostUSD)
 	return true, nil
+}
+
+func hydrateConnectorSecret(ctx context.Context, store *storage.Store, connector *connectordomain.Connector) error {
+	if connector.SecretID == "" {
+		return nil
+	}
+	encrypted, err := store.GetEncryptedConnectorSecret(ctx, connector.WorkspaceID, connector.SecretID)
+	if err != nil {
+		return fmt.Errorf("load connector secret: %w", err)
+	}
+	box, err := security.NewSecretBox(os.Getenv("DEVRELOS_SECRET_KEY"))
+	if err != nil {
+		return fmt.Errorf("connector secret encryption is not configured: %w", err)
+	}
+	plaintext, err := box.Decrypt(encrypted.Ciphertext, encrypted.Nonce,
+		security.AssociatedData(encrypted.WorkspaceID, encrypted.Provider, encrypted.Name, encrypted.KeyVersion))
+	if err != nil {
+		return fmt.Errorf("decrypt connector secret: %w", err)
+	}
+	if connector.Config == nil {
+		connector.Config = map[string]any{}
+	}
+	connector.Config["token"] = string(plaintext)
+	for i := range plaintext { plaintext[i] = 0 }
+	return nil
 }
 
 func stringValue(config map[string]any, key string) string { value, _ := config[key].(string); return value }
