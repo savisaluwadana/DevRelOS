@@ -36,11 +36,22 @@ type FetchRequest struct {
 	PageLimit int               `json:"pageLimit"`
 }
 
+type NormalizedRecord struct {
+	Kind            string   `json:"kind"`
+	Title           string   `json:"title"`
+	Body            string   `json:"body"`
+	AuthorHandle    string   `json:"authorHandle"`
+	AuthorName      string   `json:"authorName"`
+	Topics          []string `json:"topics"`
+	EngagementScore int      `json:"engagementScore"`
+}
+
 type RawRecord struct {
-	ExternalID      string         `json:"externalId"`
-	CanonicalURL    string         `json:"canonicalUrl"`
-	SourceTimestamp *time.Time     `json:"sourceTimestamp,omitempty"`
-	Payload         map[string]any `json:"payload"`
+	ExternalID      string           `json:"externalId"`
+	CanonicalURL    string           `json:"canonicalUrl"`
+	SourceTimestamp *time.Time       `json:"sourceTimestamp,omitempty"`
+	Payload         map[string]any   `json:"payload"`
+	Normalized      NormalizedRecord `json:"normalized"`
 }
 
 type FetchResult struct {
