@@ -4,6 +4,7 @@ RUN apk add --no-cache ca-certificates git
 COPY go.mod ./
 RUN go mod download
 COPY . .
+RUN go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/devrelos-worker ./services/worker
 
 FROM alpine:3.22
