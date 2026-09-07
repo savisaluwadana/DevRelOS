@@ -64,6 +64,12 @@ function clearAndRedirect(request: NextRequest, pathname = "/login") {
   return securityHeaders(response);
 }
 
+function nextWithRequestHeaders(request: NextRequest, values: Record<string, string>) {
+  const requestHeaders = new Headers(request.headers);
+  for (const [key, value] of Object.entries(values)) requestHeaders.set(key, value);
+  return securityHeaders(NextResponse.next({ request: { headers: requestHeaders } }));
+}
+
 export async function proxy(request: NextRequest) {
   const sessionsEnabled = (process.env.DEVRELOS_WEB_SESSIONS ?? "").toLowerCase() === "true";
   const pathname = request.nextUrl.pathname;
@@ -73,27 +79,25 @@ export async function proxy(request: NextRequest) {
 
     const token = request.cookies.get(sessionCookie)?.value?.trim() ?? "";
     if (!token.startsWith("drk_")) {
-      if (pathname === "/login") return securityHeaders(NextResponse.next());
+      if (pathname === "/login") return nextWithRequestHeaders(request, { "x-devrelos-login-page": "1" });
       return clearAndRedirect(request);
     }
 
     const principal = await sessionPrincipal(token);
-    if (!principal || principal.kind !== "user") {
-      if (pathname === "/login") return clearAndRedirect(request);
-      return clearAndRedirect(request);
-    }
-
+    if (!principal || principal.kind !== "user") return clearAndRedirect(request);
     if (pathname === "/login") return securityHeaders(NextResponse.redirect(new URL("/", request.url)));
 
     if (pathname === "/access" && principal.role !== "owner" && principal.role !== "admin") {
       return securityHeaders(NextResponse.redirect(new URL("/", request.url)));
     }
 
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.set("x-devrelos-user-id", principal.userId ?? "");
-    requestHeaders.set("x-devrelos-user-role", principal.role ?? "");
-    requestHeaders.set("x-devrelos-user-email", principal.email ?? "");
-    return securityHeaders(NextResponse.next({ request: { headers: requestHeaders } }));
+    return nextWithRequestHeaders(request, {
+      "x-devrelos-user-id": principal.userId ?? "",
+      "x-devrelos-user-role": principal.role ?? "",
+      "x-devrelos-user-email": principal.email ?? "",
+      "x-devrelos-user-display-name": principal.displayName ?? "",
+      "x-devrelos-workspace-id": principal.workspaceId ?? ""
+    });
   }
 
   const username = process.env.DEVRELOS_WEB_USERNAME?.trim() ?? "";
