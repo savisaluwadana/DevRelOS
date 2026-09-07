@@ -6,6 +6,7 @@ import "./outreach.css";
 import "./opportunities.css";
 import "./work.css";
 import "./content.css";
+import "./feedback.css";
 
 export const metadata: Metadata = {
   title: "DevRelOS",
@@ -22,7 +23,7 @@ const nav = [
   { label: "Communities", href: "/manage#communities" },
   { label: "Talk Library", href: "/manage#talks" },
   { label: "Outreach", href: "/outreach" },
-  { label: "Feedback", href: "/#feedback" },
+  { label: "Feedback", href: "/feedback" },
   { label: "Analytics", href: "/#analytics" },
   { label: "Automations", href: "/#automations" },
   { label: "Integrations", href: "/integrations" }
