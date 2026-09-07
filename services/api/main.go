@@ -50,6 +50,7 @@ func main() {
 	mux.HandleFunc("GET /api/v1/opportunities/cfps", a.listCFPOpportunities)
 	a.registerSignalRoutes(mux)
 	a.registerOutreachRoutes(mux)
+	a.registerWorkItemRoutes(mux)
 
 	addr := envOr("DEVRELOS_HTTP_ADDR", ":8080")
 	server := &http.Server{
