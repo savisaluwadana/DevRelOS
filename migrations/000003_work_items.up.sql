@@ -19,3 +19,6 @@ CREATE INDEX work_items_project_status_idx ON work_items(project_id, status, pri
 CREATE INDEX work_items_due_idx ON work_items(project_id, due_at) WHERE due_at IS NOT NULL;
 CREATE INDEX work_items_source_idx ON work_items(project_id, source_type, source_id);
 CREATE INDEX work_items_kind_idx ON work_items(project_id, kind);
+CREATE UNIQUE INDEX work_items_source_kind_unique_idx
+  ON work_items(project_id, source_type, source_id, kind)
+  WHERE source_id IS NOT NULL;
