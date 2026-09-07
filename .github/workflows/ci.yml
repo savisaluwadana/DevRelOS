@@ -50,6 +50,8 @@ jobs:
     env:
       DEVRELOS_API_TOKEN: ${{ github.run_id }}
       DEVRELOS_REQUIRE_AUTH: "true"
+      DEVRELOS_WEB_SESSIONS: "true"
+      DEVRELOS_SESSION_MAX_AGE_SECONDS: "3600"
     steps:
       - uses: actions/checkout@v4
       - name: Validate compose configuration
@@ -58,10 +60,9 @@ jobs:
         run: docker compose build api worker web
       - name: Boot complete stack
         run: docker compose up -d
-      - name: Smoke test API auth, RBAC and web proxy
+      - name: Smoke test API auth, RBAC and browser sessions
         run: |
           api_ready=0
-          web_ready=0
           for i in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:8080/readyz >/dev/null; then api_ready=1; break; fi
             sleep 2
@@ -76,17 +77,13 @@ jobs:
           curl -fsS -H "Authorization: Bearer $DEVRELOS_API_TOKEN" http://127.0.0.1:8080/api/v1/dashboard >/dev/null
 
           user_json=$(curl -fsS -H "Authorization: Bearer $DEVRELOS_API_TOKEN" -H 'Content-Type: application/json' \
-            -d '{"email":"ci-viewer@example.invalid","displayName":"CI Viewer","status":"active"}' \
+            -d '{"email":"ci-viewer@example.invalid","displayName":"CI Viewer","status":"active","role":"viewer"}' \
             http://127.0.0.1:8080/api/v1/identity/users)
           user_id=$(printf '%s' "$user_json" | jq -r '.id')
           test -n "$user_id"
 
-          curl -fsS -X PUT -H "Authorization: Bearer $DEVRELOS_API_TOKEN" -H 'Content-Type: application/json' \
-            -d "{\"userId\":\"$user_id\",\"role\":\"viewer\"}" \
-            http://127.0.0.1:8080/api/v1/identity/memberships >/dev/null
-
           key_json=$(curl -fsS -H "Authorization: Bearer $DEVRELOS_API_TOKEN" -H 'Content-Type: application/json' \
-            -d '{"name":"CI smoke key"}' \
+            -d '{"name":"CI browser session"}' \
             "http://127.0.0.1:8080/api/v1/identity/users/$user_id/api-keys")
           user_token=$(printf '%s' "$key_json" | jq -r '.token')
           test "${user_token#drk_}" != "$user_token"
@@ -96,16 +93,33 @@ jobs:
             -d '{"name":"Viewer must not create this event"}' http://127.0.0.1:8080/api/v1/events)
           test "$viewer_write_status" = "403"
 
+          web_ready=0
           for i in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:3000/ >/dev/null; then web_ready=1; break; fi
+            login_status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/login || true)
+            if [ "$login_status" = "200" ]; then web_ready=1; break; fi
             sleep 2
           done
           if [ "$web_ready" -ne 1 ]; then
-            echo "Web did not become reachable"
+            echo "Web login did not become reachable"
             exit 1
           fi
 
-          curl -fsS http://127.0.0.1:3000/api/devrelos/api/v1/dashboard >/dev/null
+          curl -fsS -c /tmp/devrelos.cookies -H 'Content-Type: application/json' \
+            -d "{\"token\":\"$user_token\"}" http://127.0.0.1:3000/api/session/login >/dev/null
+
+          curl -fsS -b /tmp/devrelos.cookies http://127.0.0.1:3000/ >/dev/null
+          curl -fsS -b /tmp/devrelos.cookies http://127.0.0.1:3000/api/devrelos/api/v1/dashboard >/dev/null
+
+          proxy_write_status=$(curl -sS -o /dev/null -w '%{http_code}' -b /tmp/devrelos.cookies -H 'Content-Type: application/json' \
+            -d '{"name":"Viewer must not create through proxy"}' http://127.0.0.1:3000/api/devrelos/api/v1/events)
+          test "$proxy_write_status" = "403"
+
+          access_status=$(curl -sS -o /dev/null -w '%{http_code}' -b /tmp/devrelos.cookies http://127.0.0.1:3000/access)
+          test "$access_status" = "307"
+
+          curl -fsS -b /tmp/devrelos.cookies -c /tmp/devrelos.cookies -X POST http://127.0.0.1:3000/api/session/logout >/dev/null
+          signed_out_status=$(curl -sS -o /dev/null -w '%{http_code}' -b /tmp/devrelos.cookies http://127.0.0.1:3000/)
+          test "$signed_out_status" = "307"
       - name: Runtime logs
         if: always()
         run: docker compose logs --no-color --tail=200 || true
