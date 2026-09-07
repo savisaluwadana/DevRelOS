@@ -12,6 +12,17 @@ export type Campaign = {
   updatedAt: string;
 };
 
+export type CampaignItem = {
+  id: string;
+  campaignId: string;
+  entityType: string;
+  entityId: string;
+  channel: string;
+  costUsd: number;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
 export type CampaignMetric = {
   id: string;
   campaignId: string;
@@ -25,6 +36,7 @@ export type CampaignMetric = {
 
 export type CampaignReport = {
   campaign: Campaign;
+  items: CampaignItem[];
   linkedByType: Record<string, number>;
   spendUsd: number;
   budgetRemainingUsd: number;
