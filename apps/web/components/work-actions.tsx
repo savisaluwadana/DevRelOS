@@ -2,8 +2,8 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { WorkItem, WorkItemKind, WorkItemStatus } from "@/lib/work-api";
-import { workKindLabels } from "@/lib/work-api";
+import type { WorkItem, WorkItemKind, WorkItemStatus } from "@/lib/work-shared";
+import { workKindLabels } from "@/lib/work-shared";
 
 const apiURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
