@@ -49,7 +49,7 @@ func (a *api) withAuth(next http.Handler) http.Handler {
 				rawToken = strings.TrimSpace(cookie.Value)
 			}
 		}
-		if rawToken != "" {
+		if rawToken != "" && a.store != nil {
 			principal, err := a.sessionPrincipal(r.Context(), rawToken)
 			if err == nil {
 				next.ServeHTTP(w, r.WithContext(withPrincipal(r.Context(), principal)))
@@ -60,6 +60,11 @@ func (a *api) withAuth(next http.Handler) http.Handler {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="devrelos-api"`)
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 	})
+}
+
+// withAuth is retained for focused middleware unit tests; the running API uses the store-aware method above.
+func withAuth(next http.Handler) http.Handler {
+	return (&api{}).withAuth(next)
 }
 
 func publicAuthPath(path string) bool {
