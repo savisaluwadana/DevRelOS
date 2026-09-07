@@ -8,13 +8,13 @@ export default async function AccessPage() {
   return (
     <div className="workspace-page access-page">
       <div className="page-heading">
-        <div><span className="eyebrow">Security</span><h1>Access &amp; identity</h1><p>Bootstrap users, workspace roles, revocable API keys and audit visibility.</p></div>
+        <div><span className="eyebrow">Security</span><h1>Access &amp; identity</h1><p>Provision workspace users, manage roles and revocable API keys, and inspect security activity.</p></div>
       </div>
 
       {!data.connected ? <div className="notice">Identity API is not available yet. Ensure migration 000008 is applied and the API is running.</div> : null}
 
       <section className="access-grid">
-        <article className="access-panel"><h2>Create user</h2><UserForm /></article>
+        <article className="access-panel"><h2>Provision user</h2><UserForm /></article>
         <article className="access-panel"><h2>Workspace membership</h2><MembershipForm users={data.users} /></article>
         <article className="access-panel"><h2>API key</h2><APIKeyForm users={data.users} /></article>
       </section>
@@ -43,7 +43,7 @@ export default async function AccessPage() {
       <section className="access-panel">
         <div className="section-heading"><div><span className="eyebrow">Audit</span><h2>Recent security events</h2></div></div>
         <div className="audit-list">
-          {data.audit.map((event) => <div className="audit-row" key={event.id}><div><strong>{event.action}</strong><span>{event.actorKind}{event.resourceType ? ` · ${event.resourceType}` : ""}</span></div><time>{formatDateTime(event.createdAt)}</time></div>)}
+          {data.audit.map((event) => <div className="audit-row" key={event.id}><div><strong>{event.action}</strong><span>{event.actorEmail || event.actorKind}{event.resourceType ? ` · ${event.resourceType}` : ""}</span></div><time>{formatDateTime(event.createdAt)}</time></div>)}
           {data.audit.length === 0 ? <p>No audit events yet.</p> : null}
         </div>
       </section>
