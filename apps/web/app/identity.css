@@ -1,0 +1,80 @@
+.identity-page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 32px;
+}
+
+.identity-hero {
+  max-width: 720px;
+  margin: 56px 0 28px;
+}
+
+.identity-hero h1 {
+  margin: 8px 0 12px;
+  font-size: clamp(2rem, 5vw, 3.75rem);
+  line-height: 1;
+}
+
+.identity-card {
+  max-width: 720px;
+}
+
+.identity-form {
+  display: grid;
+  gap: 16px;
+}
+
+.identity-form label {
+  display: grid;
+  gap: 7px;
+}
+
+.identity-form input,
+.identity-form select,
+.identity-role-control select {
+  width: 100%;
+}
+
+.identity-membership-list {
+  display: grid;
+  gap: 12px;
+}
+
+.identity-member-row {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  background: var(--surface-soft);
+}
+
+.identity-member-row > div:first-child,
+.identity-member-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.identity-team-row {
+  align-items: flex-start;
+}
+
+.identity-role-control {
+  min-width: 240px;
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.identity-role-control .action-note {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 760px) {
+  .identity-page { padding: 20px; }
+  .identity-member-row { align-items: stretch; flex-direction: column; }
+  .identity-role-control { min-width: 0; width: 100%; }
+}
