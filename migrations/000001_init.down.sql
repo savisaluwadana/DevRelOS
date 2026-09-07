@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS audit_log;
+DROP TABLE IF EXISTS outreach;
+DROP TABLE IF EXISTS touchpoints;
+DROP TABLE IF EXISTS relationships;
+DROP TABLE IF EXISTS community_contacts;
+DROP TABLE IF EXISTS contacts;
+DROP TABLE IF EXISTS communities;
+DROP TABLE IF EXISTS submissions;
+DROP TABLE IF EXISTS talks;
+DROP TABLE IF EXISTS cfps;
+DROP TABLE IF EXISTS events;
+DROP TABLE IF EXISTS source_records;
+DROP TABLE IF EXISTS connector_runs;
+DROP TABLE IF EXISTS connectors;
+DROP TABLE IF EXISTS projects;
+DROP TABLE IF EXISTS workspaces;
