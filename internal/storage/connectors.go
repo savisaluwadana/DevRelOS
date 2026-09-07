@@ -15,7 +15,8 @@ func (s *Store) DefaultWorkspaceID(ctx context.Context) (string, error) {
 
 func (s *Store) ListConnectors(ctx context.Context, workspaceID string) ([]domain.Connector, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id::text, workspace_id::text, provider, name, enabled, config, policy, created_at, updated_at
+		SELECT id::text, workspace_id::text, provider, name, enabled, config, policy,
+		       schedule_minutes, next_run_at, created_at, updated_at
 		FROM connectors
 		WHERE workspace_id=$1
 		ORDER BY provider, name`, workspaceID)
@@ -29,7 +30,7 @@ func (s *Store) ListConnectors(ctx context.Context, workspaceID string) ([]domai
 		var item domain.Connector
 		var configJSON, policyJSON []byte
 		if err := rows.Scan(&item.ID, &item.WorkspaceID, &item.Provider, &item.Name, &item.Enabled,
-			&configJSON, &policyJSON, &item.CreatedAt, &item.UpdatedAt); err != nil {
+			&configJSON, &policyJSON, &item.ScheduleMinutes, &item.NextRunAt, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return nil, err
 		}
 		item.Config = map[string]any{}
@@ -42,6 +43,9 @@ func (s *Store) ListConnectors(ctx context.Context, workspaceID string) ([]domai
 }
 
 func (s *Store) CreateConnector(ctx context.Context, item domain.Connector) (domain.Connector, error) {
+	if err := validateScheduleMinutes(item.ScheduleMinutes); err != nil {
+		return item, err
+	}
 	if item.Config == nil {
 		item.Config = map[string]any{}
 	}
@@ -58,11 +62,12 @@ func (s *Store) CreateConnector(ctx context.Context, item domain.Connector) (dom
 	}
 
 	err = s.pool.QueryRow(ctx, `
-		INSERT INTO connectors (workspace_id, provider, name, enabled, config, policy)
-		VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb)
-		RETURNING id::text, created_at, updated_at`,
-		item.WorkspaceID, item.Provider, item.Name, item.Enabled, configJSON, policyJSON).
-		Scan(&item.ID, &item.CreatedAt, &item.UpdatedAt)
+		INSERT INTO connectors (workspace_id, provider, name, enabled, config, policy, schedule_minutes, next_run_at)
+		VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7,
+		        CASE WHEN $7::integer IS NULL THEN NULL ELSE now() END)
+		RETURNING id::text, schedule_minutes, next_run_at, created_at, updated_at`,
+		item.WorkspaceID, item.Provider, item.Name, item.Enabled, configJSON, policyJSON, item.ScheduleMinutes).
+		Scan(&item.ID, &item.ScheduleMinutes, &item.NextRunAt, &item.CreatedAt, &item.UpdatedAt)
 	return item, err
 }
 
