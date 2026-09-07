@@ -1,0 +1,11 @@
+.git
+.github
+node_modules
+apps/web/node_modules
+apps/web/.next
+.env
+.env.*
+!.env.example
+data/media/outputs
+*.log
+.DS_Store
