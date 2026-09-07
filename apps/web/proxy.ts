@@ -11,6 +11,10 @@ type SessionPrincipal = {
   role?: string;
 };
 
+function secureCookie() {
+  return (process.env.DEVRELOS_SESSION_SECURE_COOKIE ?? "").toLowerCase() === "true";
+}
+
 function equalText(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
@@ -57,7 +61,7 @@ function clearAndRedirect(request: NextRequest, pathname = "/login") {
   response.cookies.set(sessionCookie, "", {
     httpOnly: true,
     sameSite: "strict",
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookie(),
     path: "/",
     maxAge: 0
   });
