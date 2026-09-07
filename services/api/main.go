@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/savisaluwadana/DevRelOS/internal/domain/events"
 	"github.com/savisaluwadana/DevRelOS/internal/storage"
 )
@@ -204,7 +205,14 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 }
 
 func writeBadRequest(w http.ResponseWriter, message string) { writeJSON(w, http.StatusBadRequest, map[string]string{"error": message}) }
-func writeError(w http.ResponseWriter, err error) { log.Printf("request failed: %v", err); writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"}) }
+func writeError(w http.ResponseWriter, err error) {
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+		return
+	}
+	log.Printf("request failed: %v", err)
+	writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+}
 
 func withMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
