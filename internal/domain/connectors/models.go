@@ -10,6 +10,7 @@ type Connector struct {
 	Enabled         bool           `json:"enabled"`
 	Config          map[string]any `json:"config"`
 	Policy          map[string]any `json:"policy"`
+	SecretID        string         `json:"secretId,omitempty"`
 	ScheduleMinutes *int           `json:"scheduleMinutes,omitempty"`
 	NextRunAt       *time.Time     `json:"nextRunAt,omitempty"`
 	CreatedAt       time.Time      `json:"createdAt"`
