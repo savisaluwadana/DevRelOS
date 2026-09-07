@@ -1,5 +1,5 @@
-import { ConnectorForm, RunConnectorButton } from "@/components/integration-controls";
-import { formatDate, getIntegrationData } from "@/lib/api";
+import { ConnectorForm, ConnectorScheduleControl, RunConnectorButton } from "@/components/integration-controls";
+import { formatDate, formatDateTime, getIntegrationData } from "@/lib/api";
 
 export default async function IntegrationsPage() {
   const data = await getIntegrationData();
@@ -9,8 +9,8 @@ export default async function IntegrationsPage() {
       <header className="topbar compact-topbar">
         <div>
           <span className="eyebrow">Integrations</span>
-          <h1>Source connectors with policy, provenance and run history.</h1>
-          <p>Every ingestion source has explicit limits, an observable execution history and a replaceable provider implementation.</p>
+          <h1>Source connectors with policy, provenance and scheduling.</h1>
+          <p>Every ingestion source has explicit limits, an observable execution history, optional recurring runs and a replaceable provider implementation.</p>
         </div>
         <a className="button ghost" href="/">← Command Center</a>
       </header>
@@ -52,7 +52,12 @@ export default async function IntegrationsPage() {
                     <div><span>Fetched</span><strong>{latest?.itemsFetched ?? 0}</strong></div>
                     <div><span>Cost</span><strong>${(latest?.providerCostUsd ?? 0).toFixed(4)}</strong></div>
                   </div>
+                  <div className="connector-meta-grid">
+                    <div><span>Cadence</span><strong>{connector.scheduleMinutes ? `${connector.scheduleMinutes} min` : "Manual"}</strong></div>
+                    <div><span>Next run</span><strong>{connector.nextRunAt ? formatDateTime(connector.nextRunAt) : "—"}</strong></div>
+                  </div>
                   {latest?.error && <p className="connector-error">{latest.error}</p>}
+                  <ConnectorScheduleControl connector={connector} />
                   <div className="connector-actions">
                     <RunConnectorButton connector={connector} />
                     <span>{runs.length} recorded run{runs.length === 1 ? "" : "s"}</span>
@@ -67,11 +72,12 @@ export default async function IntegrationsPage() {
       <section className="panel provider-roadmap">
         <div className="panel-head"><div><span className="eyebrow">Source catalog</span><h2>Available and planned adapters</h2></div></div>
         <div className="provider-row"><strong>GitHub Issues · available</strong><span>Repository issue pain points, labels, reactions and discussion volume with optional token-env authentication.</span></div>
+        <div className="provider-row"><strong>GitHub Discussions · available</strong><span>Authenticated GraphQL monitoring of repository Q&amp;A, categories, upvotes and conversation volume.</span></div>
+        <div className="provider-row"><strong>GitHub Releases · available</strong><span>Release notes, tags and asset-download signal with optional private-repository authentication.</span></div>
         <div className="provider-row"><strong>Hacker News · available</strong><span>Bounded keyword monitoring across new, top, best, Ask HN and Show HN feeds.</span></div>
         <div className="provider-row"><strong>RSS / Atom · available</strong><span>HTTPS blog, release and community feeds through an SSRF-safe fetch path.</span></div>
         <div className="provider-row"><strong>CNCF / Open Community Groups · available</strong><span>Public community directory discovery; organizer-detail enrichment remains a separate stage.</span></div>
         <div className="provider-row"><strong>Bluesky · available</strong><span>Public developer conversations and topic search.</span></div>
-        <div className="provider-row"><strong>GitHub Discussions · planned</strong><span>Repository discussions and community Q&amp;A once the issue-source tranche is proven in production.</span></div>
         <div className="provider-row"><strong>Reddit / X · planned</strong><span>API-approved and budget-controlled integrations only.</span></div>
       </section>
     </div>
