@@ -1,0 +1,31 @@
+.opportunities-page { display: grid; gap: 24px; }
+.opportunity-panel { overflow: hidden; }
+.opportunity-list { display: grid; gap: 16px; padding: 0 20px 20px; }
+.opportunity-card { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 20px; border: 1px solid var(--border); border-radius: 18px; padding: 20px; background: var(--panel-soft); }
+.opportunity-main { display: grid; gap: 16px; min-width: 0; }
+.opportunity-title-row { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+.opportunity-title-row h3 { margin: 4px 0 5px; font-size: 1.12rem; }
+.opportunity-score { min-width: 74px; border-radius: 16px; padding: 10px 12px; display: flex; justify-content: center; align-items: baseline; gap: 2px; border: 1px solid var(--border); background: var(--panel); }
+.opportunity-score strong { font-size: 1.7rem; line-height: 1; }
+.opportunity-score span { font-size: .72rem; color: var(--muted); }
+.opportunity-score.high { box-shadow: inset 3px 0 0 currentColor; }
+.opportunity-score.medium { opacity: .9; }
+.opportunity-score.low { opacity: .72; }
+.opportunity-talk { display: grid; gap: 4px; padding: 13px 14px; border-radius: 14px; background: var(--panel); border: 1px solid var(--border); }
+.opportunity-talk > span:last-child { color: var(--muted); font-size: .84rem; }
+.score-breakdown { display: flex; flex-wrap: wrap; gap: 8px; }
+.score-breakdown span { padding: 7px 9px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: .76rem; }
+.score-breakdown strong { color: var(--text); margin-left: 4px; }
+.score-breakdown .penalty { opacity: .72; }
+.reason-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.reason-list span { font-size: .78rem; color: var(--muted); padding-left: 13px; position: relative; }
+.reason-list span::before { content: "•"; position: absolute; left: 2px; }
+.opportunity-side { border-left: 1px solid var(--border); padding-left: 20px; display: flex; flex-direction: column; gap: 14px; }
+.opportunity-side > div { display: grid; gap: 3px; }
+.opportunity-side > div > span:last-child { color: var(--muted); font-size: .78rem; }
+.opportunity-side .button { width: 100%; justify-content: center; }
+
+@media (max-width: 980px) {
+  .opportunity-card { grid-template-columns: 1fr; }
+  .opportunity-side { border-left: 0; border-top: 1px solid var(--border); padding-left: 0; padding-top: 16px; }
+}
