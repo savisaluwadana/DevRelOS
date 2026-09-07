@@ -44,14 +44,12 @@ func (a *api) createContact(w http.ResponseWriter, r *http.Request) {
 		writeBadRequest(w, "name is required")
 		return
 	}
-	if input.WorkspaceID == "" {
-		var err error
-		input.WorkspaceID, err = a.workspaceID(r)
-		if err != nil {
-			writeError(w, err)
-			return
-		}
+	workspaceID, err := a.workspaceID(r)
+	if err != nil {
+		writeError(w, err)
+		return
 	}
+	input.WorkspaceID = workspaceID
 	created, err := a.store.CreateContact(r.Context(), input)
 	if err != nil {
 		writeError(w, err)
@@ -89,14 +87,12 @@ func (a *api) createRelationship(w http.ResponseWriter, r *http.Request) {
 		writeBadRequest(w, "strength must be between 0 and 100")
 		return
 	}
-	if input.ProjectID == "" {
-		var err error
-		input.ProjectID, err = a.projectID(r)
-		if err != nil {
-			writeError(w, err)
-			return
-		}
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
 	}
+	input.ProjectID = projectID
 	created, err := a.store.CreateRelationship(r.Context(), input)
 	if err != nil {
 		writeError(w, err)
@@ -195,14 +191,12 @@ func (a *api) createOutreach(w http.ResponseWriter, r *http.Request) {
 		writeBadRequest(w, "new outreach can only be draft or needs_approval")
 		return
 	}
-	if input.ProjectID == "" {
-		var err error
-		input.ProjectID, err = a.projectID(r)
-		if err != nil {
-			writeError(w, err)
-			return
-		}
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
 	}
+	input.ProjectID = projectID
 	created, err := a.store.CreateOutreach(r.Context(), input)
 	if err != nil {
 		writeError(w, err)
