@@ -10,31 +10,44 @@ export function ConnectorForm() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [provider, setProvider] = useState("developers.events");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
-    const provider = String(data.get("provider") ?? "");
+    const selectedProvider = String(data.get("provider") ?? "");
     const usageMode = String(data.get("usageMode") ?? "");
     const pageLimit = Number(data.get("pageLimit") ?? 100);
+    const topics = String(data.get("topics") ?? "")
+      .split(",")
+      .map((item) => item.trim().toLowerCase().replaceAll(" ", "-"))
+      .filter(Boolean);
 
     setSaving(true);
     setMessage("");
     try {
+      const config: Record<string, unknown> = {
+        page_limit: Number.isFinite(pageLimit) ? Math.min(Math.max(pageLimit, 1), 1000) : 100
+      };
+      if (selectedProvider === "developers.events") {
+        config.usage_mode = usageMode;
+      }
+      if (selectedProvider === "bluesky") {
+        config.query = String(data.get("query") ?? "").trim();
+        config.topics = topics;
+      }
+
       const response = await fetch(`${apiURL}/api/v1/connectors`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          provider,
-          name: String(data.get("name") ?? provider),
+          provider: selectedProvider,
+          name: String(data.get("name") ?? selectedProvider),
           enabled: true,
-          config: {
-            usage_mode: usageMode,
-            page_limit: Number.isFinite(pageLimit) ? Math.min(Math.max(pageLimit, 1), 1000) : 100
-          },
+          config,
           policy: {
-            reviewed: usageMode === "noncommercial",
+            reviewed: selectedProvider !== "developers.events" || usageMode === "noncommercial",
             note: "Provider-specific runtime policy is enforced by the worker."
           }
         })
@@ -44,6 +57,7 @@ export function ConnectorForm() {
         throw new Error(error.error ?? "Unable to create connector");
       }
       form.reset();
+      setProvider("developers.events");
       setMessage("Connector created.");
       router.refresh();
     } catch (error) {
@@ -57,22 +71,38 @@ export function ConnectorForm() {
     <form className="operator-form integration-form" onSubmit={submit}>
       <div className="form-grid-two">
         <label>Provider
-          <select name="provider" defaultValue="developers.events">
+          <select name="provider" value={provider} onChange={(event) => setProvider(event.target.value)}>
             <option value="developers.events">developers.events</option>
+            <option value="bluesky">Bluesky public search</option>
           </select>
         </label>
-        <label>Connector name<input name="name" placeholder="Developer events discovery" required /></label>
+        <label>Connector name<input name="name" placeholder={provider === "bluesky" ? "Platform engineering pain points" : "Developer events discovery"} required /></label>
       </div>
-      <div className="form-grid-two">
-        <label>Usage mode
-          <select name="usageMode" defaultValue="">
-            <option value="">Blocked by default</option>
-            <option value="noncommercial">Reviewed non-commercial use</option>
-          </select>
-        </label>
-        <label>Maximum records per run<input name="pageLimit" type="number" min="1" max="1000" defaultValue="100" /></label>
-      </div>
-      <p className="policy-note">developers.events content/data is not treated as commercially redistributable. The worker will refuse this connector unless its use has been reviewed and explicitly marked non-commercial.</p>
+
+      {provider === "bluesky" ? (
+        <>
+          <label>Search query<input name="query" placeholder='"platform engineering" kubernetes' required /></label>
+          <div className="form-grid-two">
+            <label>Topics<input name="topics" placeholder="platform-engineering, kubernetes" /></label>
+            <label>Maximum posts per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="50" /></label>
+          </div>
+          <p className="policy-note">Bluesky search uses the public AppView. DevRelOS stores normalized evidence and provenance by default rather than treating public posts as a relicensable content corpus.</p>
+        </>
+      ) : (
+        <>
+          <div className="form-grid-two">
+            <label>Usage mode
+              <select name="usageMode" defaultValue="">
+                <option value="">Blocked by default</option>
+                <option value="noncommercial">Reviewed non-commercial use</option>
+              </select>
+            </label>
+            <label>Maximum records per run<input name="pageLimit" type="number" min="1" max="1000" defaultValue="100" /></label>
+          </div>
+          <p className="policy-note">developers.events content/data is not treated as commercially redistributable. The worker will refuse this connector unless its use has been reviewed and explicitly marked non-commercial.</p>
+        </>
+      )}
+
       <div className="form-action-row">
         <button className="button primary" disabled={saving}>{saving ? "Saving…" : "Add connector"}</button>
         {message && <span className="form-message">{message}</span>}
