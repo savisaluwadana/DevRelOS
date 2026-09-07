@@ -62,7 +62,8 @@ func (s *Store) EnsureMembership(ctx context.Context, workspaceID, userID, role 
 	_, err := s.pool.Exec(ctx, `
 		INSERT INTO workspace_memberships (workspace_id, user_id, role)
 		VALUES ($1,$2,$3)
-		ON CONFLICT (workspace_id, user_id) DO NOTHING`, workspaceID, userID, role)
+		ON CONFLICT (workspace_id, user_id)
+		DO UPDATE SET role=EXCLUDED.role, updated_at=now()`, workspaceID, userID, role)
 	return err
 }
 
