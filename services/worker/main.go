@@ -14,6 +14,8 @@ import (
 
 	connectorruntime "github.com/savisaluwadana/DevRelOS/internal/connectors"
 	connectordomain "github.com/savisaluwadana/DevRelOS/internal/domain/connectors"
+	signaldomain "github.com/savisaluwadana/DevRelOS/internal/domain/signals"
+	"github.com/savisaluwadana/DevRelOS/internal/providers/bluesky"
 	developersevents "github.com/savisaluwadana/DevRelOS/internal/providers/developersevents"
 	"github.com/savisaluwadana/DevRelOS/internal/storage"
 )
@@ -30,6 +32,7 @@ func main() {
 
 	registry := connectorruntime.NewRegistry(
 		developersevents.New(),
+		bluesky.New(),
 	)
 	log.Printf("DevRelOS worker started with %d provider(s)", len(registry.Providers()))
 
@@ -130,6 +133,9 @@ func processNext(ctx context.Context, store *storage.Store, registry *connectorr
 	cost := result.CostUSD
 	run.ProviderCostUSD = &cost
 
+	projectID := stringValue(connector.Config, "project_id")
+	projectResolved := projectID != ""
+
 	for _, record := range result.Records {
 		payloadJSON, marshalErr := json.Marshal(record.Payload)
 		if marshalErr != nil {
@@ -143,7 +149,7 @@ func processNext(ctx context.Context, store *storage.Store, registry *connectorr
 			rawPayload = record.Payload
 		}
 
-		_, inserted, upsertErr := store.UpsertSourceRecord(ctx, connectordomain.SourceRecord{
+		sourceRecord, inserted, upsertErr := store.UpsertSourceRecord(ctx, connectordomain.SourceRecord{
 			WorkspaceID:     connector.WorkspaceID,
 			Provider:        connector.Provider,
 			ExternalID:      record.ExternalID,
@@ -170,6 +176,40 @@ func processNext(ctx context.Context, store *storage.Store, registry *connectorr
 			run.ItemsCreated++
 		} else {
 			run.ItemsUpdated++
+		}
+
+		if record.Normalized.Kind == "signal" {
+			if !projectResolved {
+				resolved, resolveErr := store.DefaultProjectIDForWorkspace(ctx, connector.WorkspaceID)
+				if resolveErr != nil {
+					run.Warnings = append(run.Warnings, fmt.Sprintf("source %s stored but signal project could not be resolved", record.ExternalID))
+					continue
+				}
+				projectID = resolved
+				projectResolved = true
+			}
+			if record.Normalized.Title == "" && record.Normalized.Body == "" {
+				run.Warnings = append(run.Warnings, fmt.Sprintf("source %s has empty normalized signal content", record.ExternalID))
+				continue
+			}
+			_, signalErr := store.CreateSignal(ctx, signaldomain.Signal{
+				ProjectID:       projectID,
+				SourceRecordID:  sourceRecord.ID,
+				Provider:        connector.Provider,
+				ExternalID:      record.ExternalID,
+				CanonicalURL:    record.CanonicalURL,
+				AuthorHandle:    record.Normalized.AuthorHandle,
+				AuthorName:      record.Normalized.AuthorName,
+				Title:           record.Normalized.Title,
+				Body:            record.Normalized.Body,
+				OccurredAt:      record.SourceTimestamp,
+				Topics:          record.Normalized.Topics,
+				EngagementScore: record.Normalized.EngagementScore,
+				Status:          "new",
+			})
+			if signalErr != nil {
+				run.Warnings = append(run.Warnings, fmt.Sprintf("source %s stored but signal upsert failed", record.ExternalID))
+			}
 		}
 	}
 
