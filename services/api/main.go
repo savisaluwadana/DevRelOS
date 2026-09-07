@@ -47,6 +47,7 @@ func main() {
 	mux.HandleFunc("GET /api/v1/connectors/{id}/runs", a.listConnectorRuns)
 	mux.HandleFunc("POST /api/v1/connectors/{id}/runs", a.queueConnectorRun)
 	a.registerSignalRoutes(mux)
+	a.registerOutreachRoutes(mux)
 
 	addr := envOr("DEVRELOS_HTTP_ADDR", ":8080")
 	server := &http.Server{
