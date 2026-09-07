@@ -41,12 +41,15 @@ jobs:
         run: npm install
       - name: Build
         env:
-          NEXT_PUBLIC_API_URL: http://127.0.0.1:8080
+          NEXT_PUBLIC_API_URL: /api/devrelos
         run: npm run build
 
   containers:
     runs-on: ubuntu-latest
     needs: [go, web]
+    env:
+      DEVRELOS_API_TOKEN: ${{ github.run_id }}
+      DEVRELOS_REQUIRE_AUTH: "true"
     steps:
       - uses: actions/checkout@v4
       - name: Validate compose configuration
@@ -55,18 +58,23 @@ jobs:
         run: docker compose build api worker web
       - name: Boot complete stack
         run: docker compose up -d
-      - name: Smoke test API and web
+      - name: Smoke test API auth and web proxy
         run: |
           api_ready=0
           web_ready=0
           for i in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:8080/healthz >/dev/null; then api_ready=1; break; fi
+            if curl -fsS http://127.0.0.1:8080/readyz >/dev/null; then api_ready=1; break; fi
             sleep 2
           done
           if [ "$api_ready" -ne 1 ]; then
-            echo "API did not become healthy"
+            echo "API did not become ready"
             exit 1
           fi
+
+          unauth_status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/v1/dashboard)
+          test "$unauth_status" = "401"
+          curl -fsS -H "Authorization: Bearer $DEVRELOS_API_TOKEN" http://127.0.0.1:8080/api/v1/dashboard >/dev/null
+
           for i in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:3000/ >/dev/null; then web_ready=1; break; fi
             sleep 2
@@ -75,7 +83,8 @@ jobs:
             echo "Web did not become reachable"
             exit 1
           fi
-          curl -fsS http://127.0.0.1:8080/api/v1/dashboard >/dev/null
+
+          curl -fsS http://127.0.0.1:3000/api/devrelos/api/v1/dashboard >/dev/null
       - name: Runtime logs
         if: always()
         run: docker compose logs --no-color --tail=200 || true
