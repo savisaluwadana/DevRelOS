@@ -8,10 +8,18 @@ import (
 )
 
 func (a *api) workspaceID(r *http.Request) (string, error) {
-	if id := strings.TrimSpace(r.URL.Query().Get("workspaceId")); id != "" {
-		return id, nil
+	id := strings.TrimSpace(r.URL.Query().Get("workspaceId"))
+	if id == "" {
+		var err error
+		id, err = a.store.DefaultWorkspaceID(r.Context())
+		if err != nil {
+			return "", err
+		}
 	}
-	return a.store.DefaultWorkspaceID(r.Context())
+	if err := a.requireWorkspaceRole(r.Context(), id, roleForMethod(r.Method)); err != nil {
+		return "", err
+	}
+	return id, nil
 }
 
 func (a *api) listConnectors(w http.ResponseWriter, r *http.Request) {
@@ -47,6 +55,10 @@ func (a *api) createConnector(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	if err := a.requireWorkspaceRole(r.Context(), workspaceID, "admin"); err != nil {
+		writeError(w, err)
+		return
+	}
 	input.WorkspaceID = workspaceID
 	created, err := a.store.CreateConnector(r.Context(), input)
 	if err != nil {
@@ -70,6 +82,10 @@ func (a *api) updateConnectorSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 	workspaceID, err := a.workspaceID(r)
 	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.requireWorkspaceRole(r.Context(), workspaceID, "admin"); err != nil {
 		writeError(w, err)
 		return
 	}
@@ -101,6 +117,10 @@ func (a *api) listConnectorRuns(w http.ResponseWriter, r *http.Request) {
 func (a *api) queueConnectorRun(w http.ResponseWriter, r *http.Request) {
 	workspaceID, err := a.workspaceID(r)
 	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.requireWorkspaceRole(r.Context(), workspaceID, "admin"); err != nil {
 		writeError(w, err)
 		return
 	}
