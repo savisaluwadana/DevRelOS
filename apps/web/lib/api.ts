@@ -210,7 +210,7 @@ export async function getIntegrationData() {
 export async function getSignalRadarData() {
   const [signals, painPoints] = await Promise.all([
     getJSON<Signal[]>("/api/v1/signals?limit=200"),
-    getJSON<PainPoint[]>("/api/v1/pain-points?limit=100")
+    getJSON<PainPoint[]>("/api/v1/pain-points?status=active&limit=100")
   ]);
 
   return {

@@ -184,6 +184,9 @@ type PainPointCluster struct {
 	SignalIDs  []string
 }
 
+// ReplacePainPointClusters synchronizes the current active cluster set while preserving
+// stable pain-point IDs. Clusters that disappear are archived instead of deleted so any
+// work items or audit records that reference them retain historical provenance.
 func (s *Store) ReplacePainPointClusters(ctx context.Context, projectID string, clusters []PainPointCluster) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -191,7 +194,10 @@ func (s *Store) ReplacePainPointClusters(ctx context.Context, projectID string, 
 	}
 	defer tx.Rollback(ctx)
 
-	if _, err := tx.Exec(ctx, `DELETE FROM pain_points WHERE project_id=$1`, projectID); err != nil {
+	if _, err := tx.Exec(ctx, `
+		UPDATE pain_points
+		SET status='archived', updated_at=now()
+		WHERE project_id=$1 AND status='active'`, projectID); err != nil {
 		return err
 	}
 
@@ -203,6 +209,18 @@ func (s *Store) ReplacePainPointClusters(ctx context.Context, projectID string, 
 				topics, status, first_seen_at, last_seen_at
 			)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'active',$10,$11)
+			ON CONFLICT (project_id, key)
+			DO UPDATE SET title=EXCLUDED.title,
+			              summary=EXCLUDED.summary,
+			              persona=EXCLUDED.persona,
+			              severity=EXCLUDED.severity,
+			              trend_score=EXCLUDED.trend_score,
+			              evidence_count=EXCLUDED.evidence_count,
+			              topics=EXCLUDED.topics,
+			              status='active',
+			              first_seen_at=EXCLUDED.first_seen_at,
+			              last_seen_at=EXCLUDED.last_seen_at,
+			              updated_at=now()
 			RETURNING id::text`,
 			projectID, cluster.Key, cluster.Title, cluster.Summary, cluster.Persona,
 			cluster.Severity, cluster.TrendScore, len(cluster.SignalIDs), cluster.Topics,
@@ -212,6 +230,9 @@ func (s *Store) ReplacePainPointClusters(ctx context.Context, projectID string, 
 			return err
 		}
 
+		if _, err := tx.Exec(ctx, `DELETE FROM pain_point_signals WHERE pain_point_id=$1`, painPointID); err != nil {
+			return err
+		}
 		for _, signalID := range cluster.SignalIDs {
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO pain_point_signals (pain_point_id, signal_id, weight)
