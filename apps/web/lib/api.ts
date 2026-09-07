@@ -75,6 +75,36 @@ export type Community = {
   status: string;
 };
 
+export type Connector = {
+  id: string;
+  workspaceId: string;
+  provider: string;
+  name: string;
+  enabled: boolean;
+  config: Record<string, unknown>;
+  policy: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ConnectorRun = {
+  id: string;
+  connectorId: string;
+  status: string;
+  cursor: string;
+  requestsMade: number;
+  itemsFetched: number;
+  itemsCreated: number;
+  itemsUpdated: number;
+  itemsSkipped: number;
+  providerCostUsd?: number;
+  warnings: string[];
+  error: string;
+  startedAt?: string;
+  finishedAt?: string;
+  createdAt: string;
+};
+
 export type Dashboard = {
   openCfps: number;
   closingSoon: number;
@@ -120,6 +150,22 @@ export async function getOperatorData() {
     submissions: submissions ?? [],
     communities: communities ?? [],
     connected: [events, cfps, talks, submissions, communities].every((value) => value !== null)
+  };
+}
+
+export async function getIntegrationData() {
+  const connectors = await getJSON<Connector[]>("/api/v1/connectors");
+  const runs = await Promise.all(
+    (connectors ?? []).map(async (connector) => ({
+      connectorId: connector.id,
+      runs: (await getJSON<ConnectorRun[]>(`/api/v1/connectors/${connector.id}/runs`)) ?? []
+    }))
+  );
+
+  return {
+    connectors: connectors ?? [],
+    runs: new Map(runs.map((item) => [item.connectorId, item.runs])),
+    connected: connectors !== null
   };
 }
 
