@@ -1,8 +1,14 @@
 FROM node:24-alpine AS build
 WORKDIR /app
-COPY apps/web/package.json ./package.json
-RUN npm install
+COPY apps/web/package.json apps/web/package-lock.json ./
+# npm ci installs exactly the committed lockfile; npm install resolved caret
+# ranges afresh on every image build.
+RUN npm ci
 COPY apps/web ./
+# The in-app Guide bundles the operator documentation at build time, so the
+# build stage needs the repository docs directory. The runtime image does not:
+# the content ends up inside the Next.js output.
+COPY docs ./docs
 ARG NEXT_PUBLIC_API_URL=/api/devrelos
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN npm run build

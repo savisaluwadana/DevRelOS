@@ -3,10 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "docs": "node scripts/generate-docs.mjs",
+    "predev": "node scripts/generate-docs.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/generate-docs.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "prelint": "node scripts/generate-docs.mjs",
+    "lint": "eslint .",
+    "typecheck": "node scripts/generate-docs.mjs && tsc --noEmit"
   },
   "dependencies": {
     "next": "^16.0.0",

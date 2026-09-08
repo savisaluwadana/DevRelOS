@@ -2,6 +2,9 @@
 
 How the platform is meant to be used, and how work flows between its surfaces.
 
+> Both of these are also readable inside the console itself, under **Guide** in
+> the sidebar, so you do not have to leave the product to look something up.
+
 This is the **task-oriented** companion to the [Operator Guide](OPERATOR_GUIDE.md).
 The Operator Guide is a reference: it documents every workspace, field and setting
 one at a time. This guide answers the questions a reference cannot:
