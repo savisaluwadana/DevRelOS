@@ -101,7 +101,7 @@ func (a *api) listMediaClips(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	items, err := a.store.ListMediaClips(r.Context(), projectID, strings.TrimSpace(r.URL.Query().Get("mediaAssetId")))
+	items, err := a.store.ListMediaClips(r.Context(), projectID, strings.TrimSpace(r.URL.Query().Get("mediaAssetId")), requestPage(r))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -176,19 +176,16 @@ func (a *api) queueMediaRender(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	clips, err := a.store.ListMediaClips(r.Context(), projectID, "")
+	clip, err := a.store.GetMediaClip(r.Context(), projectID, r.PathValue("id"))
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	approved := false
-	for _, clip := range clips {
-		if clip.ID == r.PathValue("id") && clip.Status == "approved" {
-			approved = true
-			break
-		}
+	if clip == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "clip not found"})
+		return
 	}
-	if !approved {
+	if clip.Status != "approved" {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "clip must be approved before rendering"})
 		return
 	}

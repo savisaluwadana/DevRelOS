@@ -25,7 +25,7 @@ func (a *api) listCampaigns(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	items, err := a.store.ListCampaigns(r.Context(), projectID)
+	items, err := a.store.ListCampaigns(r.Context(), projectID, requestPage(r))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -109,7 +109,7 @@ func (a *api) listCampaignItems(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	items, err := a.store.ListCampaignItems(r.Context(), projectID, r.PathValue("id"))
+	items, err := a.store.ListCampaignItems(r.Context(), projectID, r.PathValue("id"), requestPage(r))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -144,7 +144,11 @@ func (a *api) linkCampaignItem(w http.ResponseWriter, r *http.Request) {
 	}
 	belongs, err := a.store.CampaignEntityBelongsToProject(r.Context(), projectID, input.EntityType, input.EntityID)
 	if err != nil {
-		writeBadRequest(w, err.Error())
+		// This is a database error, not a description of the client's JSON.
+		// Passing err.Error() to writeBadRequest leaked the raw Postgres
+		// message - type names and SQLSTATE codes - into the response. Let
+		// writeError classify it (a malformed entityId becomes a clean 400).
+		writeError(w, err)
 		return
 	}
 	if !belongs {

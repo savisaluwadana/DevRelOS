@@ -12,6 +12,7 @@ import (
 
 	"github.com/savisaluwadana/DevRelOS/internal/connectors"
 	"github.com/savisaluwadana/DevRelOS/internal/providers/githubauth"
+	"github.com/savisaluwadana/DevRelOS/internal/providers/safehttp"
 )
 
 const defaultGraphQLURL = "https://api.github.com/graphql"
@@ -33,9 +34,8 @@ func (p *Provider) Capabilities() []connectors.Capability {
 
 func (p *Provider) ValidateConfig(config map[string]any) error {
 	repository, _ := config["repository"].(string)
-	parts := strings.Split(strings.Trim(strings.TrimSpace(repository), "/"), "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return errors.New("repository must use owner/repo format")
+	if _, err := githubauth.ValidateRepository(repository); err != nil {
+		return err
 	}
 	if !githubauth.HasToken(config) {
 		return errors.New("GitHub Discussions requires an encrypted connector secret or token_env credential")
@@ -166,7 +166,7 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 		return connectors.FetchResult{}, fmt.Errorf("github discussions returned %s", resp.Status)
 	}
 	var response graphQLResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+	if err := safehttp.DecodeJSON(resp.Body, &response); err != nil {
 		return connectors.FetchResult{}, err
 	}
 	if len(response.Errors) > 0 {

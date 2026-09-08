@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -84,12 +85,14 @@ func (s *Store) UpdateMediaTranscript(ctx context.Context, projectID, id string,
 	return scanMediaAsset(row.Scan)
 }
 
-func (s *Store) ListMediaClips(ctx context.Context, projectID, mediaAssetID string) ([]mediadomain.Clip, error) {
+func (s *Store) ListMediaClips(ctx context.Context, projectID, mediaAssetID string, page Page) ([]mediadomain.Clip, error) {
+	limit, limitArgs := page.clause(3)
+	args := append([]any{projectID, mediaAssetID}, limitArgs...)
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, project_id::text, media_asset_id::text, COALESCE(content_asset_id::text,''), title,
 		 start_ms,end_ms,aspect_ratio,score,rationale,caption_text,status,output_path,metadata,created_at,updated_at
 		FROM media_clips WHERE project_id=$1 AND ($2='' OR media_asset_id=$2::uuid)
-		ORDER BY score DESC, created_at DESC`, projectID, mediaAssetID)
+		ORDER BY score DESC, created_at DESC`+limit, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -107,6 +110,33 @@ func (s *Store) ListMediaClips(ctx context.Context, projectID, mediaAssetID stri
 		items = append(items, item)
 	}
 	return items, rows.Err()
+}
+
+// GetMediaClip looks one clip up by id, project-scoped.
+//
+// Both the render queue check and the worker previously listed every clip in the
+// project and scanned in Go for a single id. That is a full-table read for a
+// primary-key lookup, and it only stayed correct because the list query had no
+// LIMIT - adding one would have made renders fail with "clip not found".
+func (s *Store) GetMediaClip(ctx context.Context, projectID, clipID string) (*mediadomain.Clip, error) {
+	var item mediadomain.Clip
+	var metadata []byte
+	err := s.pool.QueryRow(ctx, `
+		SELECT id::text, project_id::text, media_asset_id::text, COALESCE(content_asset_id::text,''), title,
+		 start_ms,end_ms,aspect_ratio,score,rationale,caption_text,status,output_path,metadata,created_at,updated_at
+		FROM media_clips WHERE project_id=$1 AND id=$2`, projectID, clipID).
+		Scan(&item.ID, &item.ProjectID, &item.MediaAssetID, &item.ContentAssetID, &item.Title, &item.StartMS, &item.EndMS,
+			&item.AspectRatio, &item.Score, &item.Rationale, &item.CaptionText, &item.Status, &item.OutputPath,
+			&metadata, &item.CreatedAt, &item.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	item.Metadata = map[string]any{}
+	_ = json.Unmarshal(metadata, &item.Metadata)
+	return &item, nil
 }
 
 func (s *Store) CreateMediaClip(ctx context.Context, item mediadomain.Clip) (mediadomain.Clip, error) {

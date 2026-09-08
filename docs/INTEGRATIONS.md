@@ -282,3 +282,68 @@ Every connector definition should include:
 - whether writes require human approval
 
 This metadata should be visible in the admin UI so teams know the operational and policy consequences of enabling a source.
+
+---
+
+## Customising signal clustering
+
+Pain-point clustering is a deterministic keyword heuristic, not an LLM, so
+cluster rebuilds are reproducible and the product works offline. The trade-off
+is that the vocabulary matters: the built-in topic and friction terms are tuned
+for platform engineering, Kubernetes, CI/CD, observability and developer
+experience. Signals from another domain will cluster into the generic
+`general-developer-friction` bucket until the vocabulary is replaced.
+
+Point `DEVRELOS_CLUSTERING_RULES` at a JSON file to override it:
+
+```json
+{
+  "topics": [
+    {
+      "key": "robotics",
+      "label": "Robotics",
+      "persona": "Robotics engineer",
+      "terms": ["ros2", "gazebo", "motion planning"]
+    },
+    {
+      "key": "firmware",
+      "label": "Firmware and embedded",
+      "persona": "Embedded engineer",
+      "terms": ["firmware", "rtos", "flashing", "bootloader"]
+    }
+  ],
+  "frictions": [
+    { "key": "calibration", "label": "calibration drift", "terms": ["calibration", "drifts", "recalibrate"] }
+  ]
+}
+```
+
+Rules:
+
+- Both sections are optional. Omitting a section keeps the built-in vocabulary
+  for that section, so you can replace topics without restating every friction
+  term.
+- `key` is required and must be unique; `label` defaults to `key`; `persona` is
+  optional and surfaces on the cluster.
+- `terms` is required and non-empty. Terms are lowercased and trimmed on load
+  and matched as substrings against the signal title and body.
+- Unknown fields are rejected, so a typo fails loudly instead of being ignored.
+- **A missing or malformed file is a startup failure, not a fallback.** Silently
+  reverting to the built-ins would leave you believing your vocabulary was in
+  effect while every cluster was computed with the wrong terms.
+
+When running under Compose, the path must be readable *inside* the container —
+mount the file and point the variable at the mounted path:
+
+```yaml
+services:
+  api:
+    volumes:
+      - ./clustering-rules.json:/etc/devrelos/clustering-rules.json:ro
+    environment:
+      DEVRELOS_CLUSTERING_RULES: /etc/devrelos/clustering-rules.json
+```
+
+Changing the vocabulary changes how future clusters are grouped. Rebuild
+clustering afterwards so existing pain points are recomputed against the new
+terms.

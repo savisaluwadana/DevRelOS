@@ -31,25 +31,16 @@ func New(ctx context.Context, databaseURL string) (*Store, error) {
 
 func (s *Store) Close() { s.pool.Close() }
 
-func (s *Store) DefaultProjectID(ctx context.Context) (string, error) {
-	var id string
-	err := s.pool.QueryRow(ctx, `
-		SELECT p.id::text
-		FROM projects p
-		JOIN workspaces w ON w.id = p.workspace_id
-		WHERE w.slug = 'default' AND p.slug = 'default'
-		LIMIT 1`).Scan(&id)
-	return id, err
-}
-
-func (s *Store) ListEvents(ctx context.Context, projectID string) ([]events.Event, error) {
+func (s *Store) ListEvents(ctx context.Context, projectID string, page Page) ([]events.Event, error) {
+	limit, limitArgs := page.clause(2)
+	args := append([]any{projectID}, limitArgs...)
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, project_id::text, name, description, COALESCE(website_url,''),
 		       COALESCE(city,''), COALESCE(country,''), COALESCE(timezone,''),
 		       starts_at, ends_at, event_type, topics, status, created_at, updated_at
 		FROM events
 		WHERE project_id = $1
-		ORDER BY starts_at NULLS LAST, created_at DESC`, projectID)
+		ORDER BY starts_at NULLS LAST, created_at DESC`+limit, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +95,9 @@ func (s *Store) CreateEvent(ctx context.Context, e events.Event) (events.Event, 
 	return e, err
 }
 
-func (s *Store) ListCFPs(ctx context.Context, projectID string) ([]events.CFP, error) {
+func (s *Store) ListCFPs(ctx context.Context, projectID string, page Page) ([]events.CFP, error) {
+	limit, limitArgs := page.clause(2)
+	args := append([]any{projectID}, limitArgs...)
 	rows, err := s.pool.Query(ctx, `
 		SELECT c.id::text, c.event_id::text, e.name, c.name, COALESCE(c.submission_url,''),
 		       c.opens_at, c.closes_at, c.tracks, c.requirements, c.status, c.fit_score,
@@ -112,7 +105,7 @@ func (s *Store) ListCFPs(ctx context.Context, projectID string) ([]events.CFP, e
 		FROM cfps c
 		JOIN events e ON e.id = c.event_id
 		WHERE e.project_id = $1
-		ORDER BY c.closes_at NULLS LAST, c.created_at DESC`, projectID)
+		ORDER BY c.closes_at NULLS LAST, c.created_at DESC`+limit, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -134,36 +127,14 @@ func (s *Store) ListCFPs(ctx context.Context, projectID string) ([]events.CFP, e
 	return out, rows.Err()
 }
 
-func (s *Store) CreateCFP(ctx context.Context, c events.CFP) (events.CFP, error) {
-	if c.Name == "" {
-		c.Name = "Main CFP"
-	}
-	if c.Status == "" {
-		c.Status = "open"
-	}
-	if c.Tracks == nil {
-		c.Tracks = []string{}
-	}
-	if c.ScoreReason == nil {
-		c.ScoreReason = map[string]any{}
-	}
-	reason, _ := json.Marshal(c.ScoreReason)
-
-	err := s.pool.QueryRow(ctx, `
-		INSERT INTO cfps (event_id, name, submission_url, opens_at, closes_at, tracks, requirements, status, fit_score, score_reason)
-		VALUES ($1,$2,NULLIF($3,''),$4,$5,$6,$7,$8,$9,$10::jsonb)
-		RETURNING id::text, created_at, updated_at`,
-		c.EventID, c.Name, c.SubmissionURL, c.OpensAt, c.ClosesAt, c.Tracks,
-		c.Requirements, c.Status, c.FitScore, reason).Scan(&c.ID, &c.CreatedAt, &c.UpdatedAt)
-	return c, err
-}
-
-func (s *Store) ListTalks(ctx context.Context, projectID string) ([]events.Talk, error) {
+func (s *Store) ListTalks(ctx context.Context, projectID string, page Page) ([]events.Talk, error) {
+	limit, limitArgs := page.clause(2)
+	args := append([]any{projectID}, limitArgs...)
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, project_id::text, title, abstract, description, level, duration_minutes,
 		       topics, COALESCE(demo_url,''), COALESCE(slides_url,''), COALESCE(recording_url,''),
 		       status, created_at, updated_at
-		FROM talks WHERE project_id = $1 ORDER BY updated_at DESC`, projectID)
+		FROM talks WHERE project_id = $1 ORDER BY updated_at DESC`+limit, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +174,9 @@ func (s *Store) CreateTalk(ctx context.Context, t events.Talk) (events.Talk, err
 	return t, err
 }
 
-func (s *Store) ListSubmissions(ctx context.Context, projectID string) ([]events.Submission, error) {
+func (s *Store) ListSubmissions(ctx context.Context, projectID string, page Page) ([]events.Submission, error) {
+	limit, limitArgs := page.clause(2)
+	args := append([]any{projectID}, limitArgs...)
 	rows, err := s.pool.Query(ctx, `
 		SELECT s.id::text, s.cfp_id::text, s.talk_id::text, e.name, t.title,
 		       COALESCE(s.title_override,''), COALESCE(s.abstract_override,''), s.status,
@@ -213,7 +186,7 @@ func (s *Store) ListSubmissions(ctx context.Context, projectID string) ([]events
 		JOIN events e ON e.id = c.event_id
 		JOIN talks t ON t.id = s.talk_id
 		WHERE e.project_id = $1
-		ORDER BY s.updated_at DESC`, projectID)
+		ORDER BY s.updated_at DESC`+limit, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -231,45 +204,15 @@ func (s *Store) ListSubmissions(ctx context.Context, projectID string) ([]events
 	return out, rows.Err()
 }
 
-func (s *Store) CreateSubmission(ctx context.Context, sub events.Submission) (events.Submission, error) {
-	if sub.Status == "" {
-		sub.Status = "draft"
-	}
-	err := s.pool.QueryRow(ctx, `
-		INSERT INTO submissions (cfp_id, talk_id, title_override, abstract_override, status, notes, fit_score)
-		VALUES ($1,$2,NULLIF($3,''),NULLIF($4,''),$5,$6,$7)
-		RETURNING id::text, created_at, updated_at`,
-		sub.CFPID, sub.TalkID, sub.TitleOverride, sub.AbstractOverride, sub.Status,
-		sub.Notes, sub.FitScore).Scan(&sub.ID, &sub.CreatedAt, &sub.UpdatedAt)
-	return sub, err
-}
-
-func (s *Store) UpdateSubmissionStatus(ctx context.Context, id, status string) error {
-	var submittedAt, decisionAt any
-	now := time.Now().UTC()
-	if status == "submitted" {
-		submittedAt = now
-	}
-	if status == "accepted" || status == "rejected" {
-		decisionAt = now
-	}
-	_, err := s.pool.Exec(ctx, `
-		UPDATE submissions
-		SET status=$2,
-		    submitted_at=COALESCE($3, submitted_at),
-		    decision_at=COALESCE($4, decision_at),
-		    updated_at=now()
-		WHERE id=$1`, id, status, submittedAt, decisionAt)
-	return err
-}
-
-func (s *Store) ListCommunities(ctx context.Context, projectID string) ([]events.Community, error) {
+func (s *Store) ListCommunities(ctx context.Context, projectID string, page Page) ([]events.Community, error) {
+	limit, limitArgs := page.clause(2)
+	args := append([]any{projectID}, limitArgs...)
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, project_id::text, name, platform, COALESCE(external_id,''), COALESCE(website_url,''),
 		       COALESCE(city,''), COALESCE(country,''), COALESCE(timezone,''), topics, member_count,
 		       activity_score, speaking_fit_score, last_event_at, next_event_at, status, created_at, updated_at
 		FROM communities WHERE project_id=$1
-		ORDER BY speaking_fit_score DESC NULLS LAST, activity_score DESC NULLS LAST, name`, projectID)
+		ORDER BY speaking_fit_score DESC NULLS LAST, activity_score DESC NULLS LAST, name`+limit, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -307,6 +250,9 @@ func (s *Store) CreateCommunity(ctx context.Context, c events.Community) (events
 	return c, err
 }
 
+// Dashboard filters in Go and keeps the first five matches per section, so each
+// read below uses AllRows: a page limit here would hide qualifying rows rather
+// than paginate them.
 func (s *Store) Dashboard(ctx context.Context, projectID string) (events.Dashboard, error) {
 	var d events.Dashboard
 	err := s.pool.QueryRow(ctx, `
@@ -321,20 +267,17 @@ func (s *Store) Dashboard(ctx context.Context, projectID string) (events.Dashboa
 		return d, err
 	}
 
-	cfps, err := s.ListCFPs(ctx, projectID)
-	if err != nil {
-		return d, err
-	}
-	for _, c := range cfps {
-		if c.Status == "open" && c.FitScore != nil && *c.FitScore >= 70 {
-			d.HighFitCFPs = append(d.HighFitCFPs, c)
-			if len(d.HighFitCFPs) == 5 {
-				break
-			}
-		}
-	}
+	// HighFitCFPs is filled by the API layer from the live CFP/talk scorer.
+	//
+	// This used to load every CFP and filter on the stored cfps.fit_score
+	// column, which nothing ever computes - it is only persisted if a client
+	// happens to supply a value on create. The Command Center's headline
+	// "High-fit opportunities" panel was therefore permanently empty even when
+	// the scorer rated a CFP highly. The scorer lives in internal/intelligence
+	// and must not be imported here, so the handler enriches the dashboard and
+	// this query is gone.
 
-	eventsList, err := s.ListEvents(ctx, projectID)
+	eventsList, err := s.ListEvents(ctx, projectID, AllRows())
 	if err != nil {
 		return d, err
 	}
@@ -348,7 +291,7 @@ func (s *Store) Dashboard(ctx context.Context, projectID string) (events.Dashboa
 		}
 	}
 
-	communities, err := s.ListCommunities(ctx, projectID)
+	communities, err := s.ListCommunities(ctx, projectID, AllRows())
 	if err != nil {
 		return d, err
 	}

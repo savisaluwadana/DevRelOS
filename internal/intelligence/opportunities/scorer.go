@@ -30,15 +30,22 @@ type SpeakingOpportunity struct {
 	ExistingOutreachState string                       `json:"existingOutreachState,omitempty"`
 }
 
+// Pair is one (community, talk) candidate to score. Pair generation lives in
+// the storage layer so the database can filter and bound the candidate set
+// instead of the whole cross product being built in memory.
+type Pair struct {
+	Community events.Community
+	Talk      events.Talk
+}
+
+// RankSpeaking builds the full community x talk cross product itself.
+//
+// It is retained for callers that already hold complete slices and for the
+// scoring tests. Request handlers should use RankSpeakingPairs with candidates
+// from storage.ListSpeakingCandidates: this function is quadratic in the number
+// of communities and talks.
 func RankSpeaking(communities []events.Community, talks []events.Talk, relationships []outreachdomain.Relationship, outreachItems []outreachdomain.Outreach, now time.Time) []SpeakingOpportunity {
-	if now.IsZero() {
-		now = time.Now().UTC()
-	}
-
-	relByCommunity := bestRelationshipByCommunity(relationships)
-	outreachByCommunity := latestOutreachByCommunity(outreachItems)
-	results := make([]SpeakingOpportunity, 0)
-
+	pairs := make([]Pair, 0, len(communities)*len(talks))
 	for _, community := range communities {
 		if community.Status == "do_not_contact" || community.Status == "paused" {
 			continue
@@ -47,9 +54,31 @@ func RankSpeaking(communities []events.Community, talks []events.Talk, relations
 			if talk.Status == "retired" {
 				continue
 			}
-			candidate := scorePair(community, talk, relByCommunity[community.ID], outreachByCommunity[community.ID], now)
-			results = append(results, candidate)
+			pairs = append(pairs, Pair{Community: community, Talk: talk})
 		}
+	}
+	return RankSpeakingPairs(pairs, relationships, outreachItems, now)
+}
+
+// RankSpeakingPairs scores an already-selected candidate set and orders it by
+// exact score. Eligibility filtering is the caller's job, because the candidate
+// query applies the same rules in SQL.
+func RankSpeakingPairs(pairs []Pair, relationships []outreachdomain.Relationship, outreachItems []outreachdomain.Outreach, now time.Time) []SpeakingOpportunity {
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+
+	relByCommunity := bestRelationshipByCommunity(relationships)
+	outreachByCommunity := latestOutreachByCommunity(outreachItems)
+	results := make([]SpeakingOpportunity, 0, len(pairs))
+
+	for _, pair := range pairs {
+		results = append(results, scorePair(
+			pair.Community, pair.Talk,
+			relByCommunity[pair.Community.ID],
+			outreachByCommunity[pair.Community.ID],
+			now,
+		))
 	}
 
 	sort.SliceStable(results, func(i, j int) bool {

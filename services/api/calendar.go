@@ -45,7 +45,7 @@ func (a *api) listCalendar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items, err := a.store.ListCalendarItems(r.Context(), projectID, from, to)
+	items, err := a.store.ListCalendarItems(r.Context(), projectID, from, to, requestPage(r))
 	if err != nil {
 		writeError(w, err)
 		return

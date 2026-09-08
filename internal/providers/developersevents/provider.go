@@ -4,23 +4,27 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/savisaluwadana/DevRelOS/internal/connectors"
+	"github.com/savisaluwadana/DevRelOS/internal/providers/safehttp"
 )
 
 const defaultFeedURL = "https://developers.events/all-events.json"
 
 type Provider struct {
 	client *http.Client
+	// allowUnsafeLocal relaxes destination validation for tests and local
+	// fixtures. It must never be set from operator configuration.
+	allowUnsafeLocal bool
 }
 
 func New() *Provider {
-	return &Provider{client: &http.Client{Timeout: 20 * time.Second}}
+	return &Provider{client: safehttp.NewClient(20*time.Second, "feed_url")}
 }
 
 func (p *Provider) ID() string { return "developers.events" }
@@ -31,8 +35,21 @@ func (p *Provider) Capabilities() []connectors.Capability {
 
 func (p *Provider) ValidateConfig(config map[string]any) error {
 	if value, ok := config["feed_url"]; ok {
-		if _, ok := value.(string); !ok {
+		raw, ok := value.(string)
+		if !ok {
 			return errors.New("feed_url must be a string")
+		}
+		if raw != "" {
+			// feed_url is operator-supplied and was previously only checked for
+			// being a string, so a connector could be pointed at an internal
+			// service or cloud instance metadata and have the response stored.
+			parsed, err := url.Parse(raw)
+			if err != nil {
+				return errors.New("feed_url must be a valid URL")
+			}
+			if err := safehttp.ValidateURL(parsed, "feed_url", p.allowUnsafeLocal); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -75,7 +92,7 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 	}
 
 	var payload []map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	if err := safehttp.DecodeJSON(resp.Body, &payload); err != nil {
 		return connectors.FetchResult{}, err
 	}
 

@@ -1,5 +1,5 @@
 import { serverFetch } from "@/lib/server-api";
-import type { Campaign, CampaignItem, CampaignReport, RelationshipRadarItem } from "@/lib/campaign-shared";
+import type { Campaign, CampaignReport, RelationshipRadarItem } from "@/lib/campaign-shared";
 export * from "@/lib/campaign-shared";
 
 export async function getCampaignData(): Promise<{ campaigns: Campaign[]; reports: CampaignReport[]; connected: boolean }> {
@@ -7,15 +7,17 @@ export async function getCampaignData(): Promise<{ campaigns: Campaign[]; report
     const response = await serverFetch("/api/v1/campaigns", { signal: AbortSignal.timeout(3000) });
     if (!response.ok) return { campaigns: [], reports: [], connected: false };
     const campaigns = (await response.json()) as Campaign[];
+    // The report now carries its attributed items, so this is one request per
+    // campaign rather than two. The second call existed only because the report
+    // declared an "items" field it never populated.
     const reports = (await Promise.all(campaigns.slice(0, 20).map(async (campaign) => {
-      const [reportResponse, itemsResponse] = await Promise.all([
-        serverFetch(`/api/v1/campaigns/${encodeURIComponent(campaign.id)}/report`, { signal: AbortSignal.timeout(3000) }),
-        serverFetch(`/api/v1/campaigns/${encodeURIComponent(campaign.id)}/items`, { signal: AbortSignal.timeout(3000) })
-      ]);
+      const reportResponse = await serverFetch(
+        `/api/v1/campaigns/${encodeURIComponent(campaign.id)}/report`,
+        { signal: AbortSignal.timeout(3000) }
+      );
       if (!reportResponse.ok) return null;
       const report = (await reportResponse.json()) as CampaignReport;
-      const items = itemsResponse.ok ? (await itemsResponse.json()) as CampaignItem[] : [];
-      return { ...report, items };
+      return { ...report, items: report.items ?? [] };
     }))).filter((item): item is CampaignReport => Boolean(item));
     return { campaigns, reports, connected: true };
   } catch {

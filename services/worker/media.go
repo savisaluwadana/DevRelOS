@@ -17,7 +17,9 @@ import (
 
 func processAvailableMedia(ctx context.Context, store *storage.Store) {
 	for {
-		processed, err := processNextMedia(ctx, store)
+		processed, err := guardJob("media", func() (bool, error) {
+			return processNextMedia(ctx, store)
+		})
 		if err != nil {
 			log.Printf("media queue error: %v", err)
 			return
@@ -46,16 +48,9 @@ func processNextMedia(ctx context.Context, store *storage.Store) (bool, error) {
 	if err != nil {
 		return finishMediaFailure(ctx, store, job, fmt.Errorf("load media asset: %w", err))
 	}
-	clips, err := store.ListMediaClips(ctx, job.ProjectID, job.MediaAssetID)
+	clip, err := store.GetMediaClip(ctx, job.ProjectID, job.ClipID)
 	if err != nil {
 		return finishMediaFailure(ctx, store, job, fmt.Errorf("load clip: %w", err))
-	}
-	var clip *mediadomain.Clip
-	for i := range clips {
-		if clips[i].ID == job.ClipID {
-			clip = &clips[i]
-			break
-		}
 	}
 	if clip == nil {
 		return finishMediaFailure(ctx, store, job, fmt.Errorf("clip %s not found", job.ClipID))
@@ -140,6 +135,11 @@ func confinedPath(root, candidate string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// Resolve the root too, so a symlinked media root still compares equal to
+	// the resolved candidate below rather than looking like an escape.
+	if resolvedRoot, err := filepath.EvalSymlinks(rootAbs); err == nil {
+		rootAbs = resolvedRoot
+	}
 	path := candidate
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(rootAbs, path)
@@ -148,14 +148,42 @@ func confinedPath(root, candidate string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	rel, err := filepath.Rel(rootAbs, pathAbs)
+	// Lexical cleaning alone does not stop a symlink inside the media root from
+	// pointing outside it, so compare the symlink-resolved path.
+	resolved := resolveExistingPrefix(pathAbs)
+	rel, err := filepath.Rel(rootAbs, resolved)
 	if err != nil {
 		return "", err
 	}
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return "", fmt.Errorf("media path escapes configured root")
 	}
-	return pathAbs, nil
+	// Return the resolved path so the result is canonical regardless of whether
+	// the caller passed a relative or an already-absolute candidate.
+	return resolved, nil
+}
+
+// resolveExistingPrefix resolves symlinks in the deepest existing ancestor of
+// path and re-joins the components that do not exist yet. Render outputs are
+// named before they are created, so EvalSymlinks on the full path would fail;
+// only existing components can be symlinks anyway.
+func resolveExistingPrefix(path string) string {
+	current := path
+	remaining := ""
+	for {
+		if resolved, err := filepath.EvalSymlinks(current); err == nil {
+			if remaining == "" {
+				return resolved
+			}
+			return filepath.Join(resolved, remaining)
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return path
+		}
+		remaining = filepath.Join(filepath.Base(current), remaining)
+		current = parent
+	}
 }
 
 func videoFilter(aspect string) (string, error) {

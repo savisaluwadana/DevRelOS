@@ -101,11 +101,6 @@ func (s *Store) RevokeSession(ctx context.Context, sessionID, userID string) err
 	return nil
 }
 
-func (s *Store) RevokeAllUserSessions(ctx context.Context, userID string) error {
-	_, err := s.pool.Exec(ctx, `UPDATE user_sessions SET revoked_at=COALESCE(revoked_at, now()) WHERE user_id=$1 AND revoked_at IS NULL`, userID)
-	return err
-}
-
 func (s *Store) ListInvitations(ctx context.Context, workspaceID string) ([]domain.Invitation, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, workspace_id::text, email, role, COALESCE(invited_by_user_id::text,''), expires_at, accepted_at, created_at

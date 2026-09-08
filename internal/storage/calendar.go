@@ -7,7 +7,9 @@ import (
 	calendardomain "github.com/savisaluwadana/DevRelOS/internal/domain/calendar"
 )
 
-func (s *Store) ListCalendarItems(ctx context.Context, projectID string, from, to time.Time) ([]calendardomain.Item, error) {
+func (s *Store) ListCalendarItems(ctx context.Context, projectID string, from, to time.Time, page Page) ([]calendardomain.Item, error) {
+	limit, limitArgs := page.clause(4)
+	args := append([]any{projectID, from, to}, limitArgs...)
 	rows, err := s.pool.Query(ctx, `
 		SELECT id, kind, title, subtitle, starts_at, ends_at, status, href, priority, source_id
 		FROM (
@@ -68,7 +70,7 @@ func (s *Store) ListCalendarItems(ctx context.Context, projectID string, from, t
 			WHERE r.project_id=$1 AND r.next_follow_up_at IS NOT NULL AND r.stage <> 'dormant'
 		) calendar
 		WHERE starts_at >= $2 AND starts_at <= $3
-		ORDER BY starts_at ASC, priority DESC, kind ASC`, projectID, from, to)
+		ORDER BY starts_at ASC, priority DESC, kind ASC`+limit, args...)
 	if err != nil {
 		return nil, err
 	}

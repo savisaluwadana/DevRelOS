@@ -43,7 +43,42 @@ function isPublicSessionPath(pathname: string) {
   return pathname === "/login" || pathname === "/invite" || pathname.startsWith("/api/session/");
 }
 
+// This proxy runs on every non-static request, so an uncached /identity/me
+// lookup cost one API round trip plus one session row read per navigation and
+// per client-side fetch. Cache resolved principals briefly instead.
+//
+// The trade-off is revocation latency: a revoked session or a role change stays
+// visible to the proxy for up to PRINCIPAL_TTL_MS. The API re-checks the session
+// and role on every request it serves, so this only delays the redirect to
+// /login and the admin-nav hiding, never actual data access.
+const PRINCIPAL_TTL_MS = 5_000;
+const PRINCIPAL_CACHE_MAX = 32;
+const principalCache = new Map<string, { expiresAt: number; principal: SessionPrincipal | null }>();
+
+function cachedPrincipal(token: string): { principal: SessionPrincipal | null } | undefined {
+  const hit = principalCache.get(token);
+  if (!hit) return undefined;
+  if (hit.expiresAt <= Date.now()) {
+    principalCache.delete(token);
+    return undefined;
+  }
+  return hit;
+}
+
+function cachePrincipal(token: string, principal: SessionPrincipal | null) {
+  if (principalCache.size >= PRINCIPAL_CACHE_MAX) {
+    for (const key of principalCache.keys()) {
+      principalCache.delete(key);
+      if (principalCache.size < PRINCIPAL_CACHE_MAX) break;
+    }
+  }
+  principalCache.set(token, { expiresAt: Date.now() + PRINCIPAL_TTL_MS, principal });
+}
+
 async function sessionPrincipal(token: string): Promise<SessionPrincipal | null> {
+  const cached = cachedPrincipal(token);
+  if (cached) return cached.principal;
+
   const backendURL = process.env.DEVRELOS_API_URL ?? "http://localhost:8080";
   try {
     const response = await fetch(`${backendURL}/api/v1/identity/me`, {
@@ -51,9 +86,16 @@ async function sessionPrincipal(token: string): Promise<SessionPrincipal | null>
       cache: "no-store",
       signal: AbortSignal.timeout(3000)
     });
-    if (!response.ok) return null;
-    return (await response.json()) as SessionPrincipal;
+    if (!response.ok) {
+      // Negative-cache rejections too, so a stale cookie cannot hammer the API.
+      cachePrincipal(token, null);
+      return null;
+    }
+    const principal = (await response.json()) as SessionPrincipal;
+    cachePrincipal(token, principal);
+    return principal;
   } catch {
+    // Transport failures are not cached; the API may just be starting up.
     return null;
   }
 }

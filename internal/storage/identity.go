@@ -10,19 +10,6 @@ import (
 	domain "github.com/savisaluwadana/DevRelOS/internal/domain/identity"
 )
 
-func (s *Store) CreateUser(ctx context.Context, user domain.User) (domain.User, error) {
-	if user.Status == "" {
-		user.Status = "active"
-	}
-	err := s.pool.QueryRow(ctx, `
-		INSERT INTO users (email, display_name, status)
-		VALUES (lower($1), $2, $3)
-		RETURNING id::text, email, display_name, status, created_at, updated_at`,
-		user.Email, user.DisplayName, user.Status).
-		Scan(&user.ID, &user.Email, &user.DisplayName, &user.Status, &user.CreatedAt, &user.UpdatedAt)
-	return user, err
-}
-
 func (s *Store) CreateWorkspaceUser(ctx context.Context, workspaceID string, user domain.User, role string) (domain.User, error) {
 	if user.Status == "" {
 		user.Status = "active"
@@ -61,23 +48,6 @@ func (s *Store) CreateWorkspaceUser(ctx context.Context, workspaceID string, use
 		return user, err
 	}
 	return user, nil
-}
-
-func (s *Store) ListUsers(ctx context.Context) ([]domain.User, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id::text, email, display_name, status, created_at, updated_at FROM users ORDER BY created_at DESC`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := make([]domain.User, 0)
-	for rows.Next() {
-		var item domain.User
-		if err := rows.Scan(&item.ID, &item.Email, &item.DisplayName, &item.Status, &item.CreatedAt, &item.UpdatedAt); err != nil {
-			return nil, err
-		}
-		items = append(items, item)
-	}
-	return items, rows.Err()
 }
 
 func (s *Store) ListWorkspaceUsers(ctx context.Context, workspaceID string) ([]domain.User, error) {

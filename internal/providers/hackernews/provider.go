@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/savisaluwadana/DevRelOS/internal/connectors"
+	"github.com/savisaluwadana/DevRelOS/internal/providers/safehttp"
 )
 
 const defaultBaseURL = "https://hacker-news.firebaseio.com/v0"
@@ -177,7 +178,7 @@ func (p *Provider) fetchIDs(ctx context.Context, feed string) ([]int, error) {
 		return nil, fmt.Errorf("hacker news feed returned %s", resp.Status)
 	}
 	var ids []int
-	if err := json.NewDecoder(resp.Body).Decode(&ids); err != nil {
+	if err := safehttp.DecodeJSON(resp.Body, &ids); err != nil {
 		return nil, err
 	}
 	return ids, nil
@@ -198,7 +199,7 @@ func (p *Provider) fetchItem(ctx context.Context, id int) (item, error) {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return out, fmt.Errorf("hacker news item returned %s", resp.Status)
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	if err := safehttp.DecodeJSON(resp.Body, &out); err != nil {
 		return out, err
 	}
 	return out, nil

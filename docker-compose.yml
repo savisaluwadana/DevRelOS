@@ -38,12 +38,11 @@ services:
     environment:
       DATABASE_URL: postgres://devrelos:devrelos@postgres:5432/devrelos?sslmode=disable
       DEVRELOS_HTTP_ADDR: :8080
-      DEVRELOS_DEFAULT_WORKSPACE: default
-      DEVRELOS_DEFAULT_PROJECT: default
       DEVRELOS_CORS_ORIGIN: http://localhost:3000
       DEVRELOS_API_TOKEN: ${DEVRELOS_API_TOKEN:-}
       DEVRELOS_REQUIRE_AUTH: ${DEVRELOS_REQUIRE_AUTH:-false}
       DEVRELOS_SECRET_KEY: ${DEVRELOS_SECRET_KEY:-}
+      DEVRELOS_CLUSTERING_RULES: ${DEVRELOS_CLUSTERING_RULES:-}
       DEVRELOS_RATE_LIMIT_ENABLED: ${DEVRELOS_RATE_LIMIT_ENABLED:-true}
       DEVRELOS_RATE_LIMIT_RPM: ${DEVRELOS_RATE_LIMIT_RPM:-120}
       DEVRELOS_TRUST_PROXY: ${DEVRELOS_TRUST_PROXY:-false}
@@ -64,12 +63,11 @@ services:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: postgres://devrelos:devrelos@postgres:5432/devrelos?sslmode=disable
-      DEVRELOS_DEFAULT_WORKSPACE: default
-      DEVRELOS_DEFAULT_PROJECT: default
       DEVRELOS_WORKER_POLL_INTERVAL: 5s
       DEVRELOS_MEDIA_ROOT: /data/media
       DEVRELOS_MEDIA_OUTPUT_ROOT: /data/media/outputs
       DEVRELOS_SECRET_KEY: ${DEVRELOS_SECRET_KEY:-}
+      DEVRELOS_CLUSTERING_RULES: ${DEVRELOS_CLUSTERING_RULES:-}
       DEVRELOS_SMTP_ENABLED: ${DEVRELOS_SMTP_ENABLED:-false}
       DEVRELOS_SMTP_HOST: ${DEVRELOS_SMTP_HOST:-}
       DEVRELOS_SMTP_PORT: ${DEVRELOS_SMTP_PORT:-587}
@@ -103,7 +101,10 @@ services:
       DEVRELOS_SESSION_MAX_AGE_SECONDS: ${DEVRELOS_SESSION_MAX_AGE_SECONDS:-28800}
       DEVRELOS_SESSION_SECURE_COOKIE: ${DEVRELOS_SESSION_SECURE_COOKIE:-false}
     ports:
-      - "3000:3000"
+      # Loopback only, matching postgres and api. Publishing on 0.0.0.0 exposed
+      # every server-rendered page to the local network, and in the default
+      # local config (no token, sessions off) those pages render unauthenticated.
+      - "127.0.0.1:3000:3000"
     restart: unless-stopped
 
 volumes:

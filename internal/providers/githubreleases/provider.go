@@ -2,8 +2,6 @@ package githubreleases
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,6 +11,7 @@ import (
 
 	"github.com/savisaluwadana/DevRelOS/internal/connectors"
 	"github.com/savisaluwadana/DevRelOS/internal/providers/githubauth"
+	"github.com/savisaluwadana/DevRelOS/internal/providers/safehttp"
 )
 
 const defaultBaseURL = "https://api.github.com"
@@ -35,9 +34,8 @@ func (p *Provider) Capabilities() []connectors.Capability {
 
 func (p *Provider) ValidateConfig(config map[string]any) error {
 	repository, _ := config["repository"].(string)
-	parts := strings.Split(strings.Trim(strings.TrimSpace(repository), "/"), "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return errors.New("repository must use owner/repo format")
+	if _, err := githubauth.ValidateRepository(repository); err != nil {
+		return err
 	}
 	return nil
 }
@@ -131,7 +129,7 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 	}
 
 	var payload []release
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	if err := safehttp.DecodeJSON(resp.Body, &payload); err != nil {
 		return connectors.FetchResult{}, err
 	}
 

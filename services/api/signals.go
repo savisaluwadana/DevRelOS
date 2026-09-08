@@ -145,7 +145,14 @@ func (a *api) rebuildPainPoints(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	clusters := intelligence.ClusterSignals(items, time.Now().UTC())
+	rules, err := intelligence.ActiveRuleset()
+	if err != nil {
+		// A bad rules file is a configuration error, not a reason to silently
+		// cluster with the wrong vocabulary.
+		writeError(w, err)
+		return
+	}
+	clusters := intelligence.ClusterSignalsWith(rules, items, time.Now().UTC())
 	persistable := make([]storage.PainPointCluster, 0, len(clusters))
 	for _, cluster := range clusters {
 		persistable = append(persistable, storage.PainPointCluster{

@@ -1,4 +1,5 @@
 import { getRelationshipRadar } from "@/lib/campaign-api";
+import { renderTimestamp } from "@/lib/clock";
 
 function date(value?: string | null) {
   if (!value) return "Not scheduled";
@@ -10,7 +11,8 @@ export default async function RelationshipsPage() {
   const critical = data.items.filter((item) => item.health === "critical").length;
   const watch = data.items.filter((item) => item.health === "watch").length;
   const partners = data.items.filter((item) => item.stage === "partner").length;
-  const overdue = data.items.filter((item) => item.nextFollowUpAt && new Date(item.nextFollowUpAt).getTime() < Date.now()).length;
+  const now = renderTimestamp();
+  const overdue = data.items.filter((item) => item.nextFollowUpAt && new Date(item.nextFollowUpAt).getTime() < now).length;
 
   return (
     <div className="page-wrap relationships-page">

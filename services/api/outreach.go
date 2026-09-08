@@ -26,7 +26,7 @@ func (a *api) listContacts(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	items, err := a.store.ListContacts(r.Context(), workspaceID)
+	items, err := a.store.ListContacts(r.Context(), workspaceID, requestPage(r))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -64,7 +64,7 @@ func (a *api) listRelationships(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	items, err := a.store.ListRelationships(r.Context(), projectID)
+	items, err := a.store.ListRelationships(r.Context(), projectID, requestPage(r))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -165,7 +165,7 @@ func (a *api) listOutreach(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	items, err := a.store.ListOutreach(r.Context(), projectID)
+	items, err := a.store.ListOutreach(r.Context(), projectID, requestPage(r))
 	if err != nil {
 		writeError(w, err)
 		return

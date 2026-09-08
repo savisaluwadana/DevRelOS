@@ -1,5 +1,6 @@
 import { formatDate, getDashboard, locationLabel } from "@/lib/api";
 import { getCampaignData, getRelationshipRadar } from "@/lib/campaign-api";
+import { renderTimestamp } from "@/lib/clock";
 
 function Metric({ label, value, note }: { label: string; value: number | string; note: string }) {
   return (
@@ -23,7 +24,8 @@ export default async function Home() {
   const activeCampaigns = campaignData.campaigns.filter((campaign) => campaign.status === "active").length;
   const campaignOutcome = campaignData.reports.length === 0 ? 0 : Math.round(campaignData.reports.reduce((sum, report) => sum + report.outcomeScore, 0) / campaignData.reports.length);
   const criticalRelationships = relationshipData.items.filter((item) => item.health === "critical").length;
-  const overdueFollowUps = relationshipData.items.filter((item) => item.nextFollowUpAt && new Date(item.nextFollowUpAt).getTime() < Date.now()).length;
+  const now = renderTimestamp();
+  const overdueFollowUps = relationshipData.items.filter((item) => item.nextFollowUpAt && new Date(item.nextFollowUpAt).getTime() < now).length;
 
   return (
     <div className="page-wrap">

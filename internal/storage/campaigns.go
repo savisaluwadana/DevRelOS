@@ -11,13 +11,15 @@ import (
 	campaigndomain "github.com/savisaluwadana/DevRelOS/internal/domain/campaigns"
 )
 
-func (s *Store) ListCampaigns(ctx context.Context, projectID string) ([]campaigndomain.Campaign, error) {
+func (s *Store) ListCampaigns(ctx context.Context, projectID string, page Page) ([]campaigndomain.Campaign, error) {
+	limit, limitArgs := page.clause(2)
+	args := append([]any{projectID}, limitArgs...)
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, project_id::text, name, objective, status, starts_at, ends_at,
 		       budget_usd::float8, target, created_at, updated_at
 		FROM campaigns WHERE project_id=$1
 		ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'planning' THEN 1 WHEN 'paused' THEN 2 WHEN 'completed' THEN 3 ELSE 4 END,
-		         updated_at DESC`, projectID)
+		         updated_at DESC`+limit, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -147,6 +149,9 @@ func (s *Store) RecordCampaignMetric(ctx context.Context, projectID string, metr
 	return metric, err
 }
 
+// campaignReportItemLimit caps the attributed-item list embedded in a report.
+const campaignReportItemLimit = 200
+
 func (s *Store) CampaignReport(ctx context.Context, projectID, campaignID string) (campaigndomain.Report, error) {
 	campaign, err := s.GetCampaign(ctx, projectID, campaignID)
 	if err != nil {
@@ -175,6 +180,20 @@ func (s *Store) CampaignReport(ctx context.Context, projectID, campaignID string
 	}
 	rows.Close()
 	report.BudgetRemainingUSD = math.Max(0, campaign.BudgetUSD-report.SpendUSD)
+
+	// Populate the attributed items. The report declared an "items" field and
+	// never filled it, so every API and MCP consumer saw an empty list while
+	// linkedByType showed the real counts, and the web app had to issue a
+	// second request per campaign to work around it.
+	//
+	// linkedByType and spendUsd above are exact (computed with GROUP BY over
+	// every row); this list is capped, so treat it as a display sample rather
+	// than the authoritative set for large campaigns.
+	items, err := s.ListCampaignItems(ctx, projectID, campaignID, Page{Limit: campaignReportItemLimit})
+	if err != nil {
+		return report, err
+	}
+	report.Items = items
 
 	err = s.pool.QueryRow(ctx, `
 		SELECT

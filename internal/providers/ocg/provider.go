@@ -12,13 +12,21 @@ import (
 	"time"
 
 	"github.com/savisaluwadana/DevRelOS/internal/connectors"
+	"github.com/savisaluwadana/DevRelOS/internal/providers/safehttp"
 )
 
 const defaultBaseURL = "https://ocgroups.dev"
 
-type Provider struct{ client *http.Client }
+type Provider struct {
+	client *http.Client
+	// allowUnsafeLocal relaxes destination validation for tests and local
+	// fixtures. It must never be set from operator configuration.
+	allowUnsafeLocal bool
+}
 
-func New() *Provider           { return &Provider{client: &http.Client{Timeout: 20 * time.Second}} }
+func New() *Provider {
+	return &Provider{client: safehttp.NewClient(20*time.Second, "base_url")}
+}
 func (p *Provider) ID() string { return "ocg" }
 func (p *Provider) Capabilities() []connectors.Capability {
 	return []connectors.Capability{connectors.CapabilitySearch, connectors.CapabilityCommunityDirectory}
@@ -27,8 +35,14 @@ func (p *Provider) Capabilities() []connectors.Capability {
 func (p *Provider) ValidateConfig(config map[string]any) error {
 	if base, ok := config["base_url"].(string); ok && base != "" {
 		parsed, err := url.Parse(base)
-		if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
-			return errors.New("base_url must be an https URL")
+		if err != nil {
+			return errors.New("base_url must be a valid URL")
+		}
+		// base_url is operator-supplied, so it needs the same destination
+		// validation the RSS feed URL gets: scheme, credentials, and private or
+		// link-local addresses (cloud instance metadata lives on one).
+		if err := safehttp.ValidateURL(parsed, "base_url", p.allowUnsafeLocal); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -127,7 +141,7 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 	}
 
 	var payload searchResponse
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	if err := safehttp.DecodeJSON(resp.Body, &payload); err != nil {
 		return connectors.FetchResult{}, err
 	}
 	result := connectors.FetchResult{Records: make([]connectors.RawRecord, 0, len(payload.Groups)), RequestsMade: 1}

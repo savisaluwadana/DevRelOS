@@ -8,14 +8,16 @@ import (
 	campaigndomain "github.com/savisaluwadana/DevRelOS/internal/domain/campaigns"
 )
 
-func (s *Store) ListCampaignItems(ctx context.Context, projectID, campaignID string) ([]campaigndomain.Item, error) {
+func (s *Store) ListCampaignItems(ctx context.Context, projectID, campaignID string, page Page) ([]campaigndomain.Item, error) {
+	limit, limitArgs := page.clause(3)
+	args := append([]any{campaignID, projectID}, limitArgs...)
 	rows, err := s.pool.Query(ctx, `
 		SELECT ci.id::text, ci.campaign_id::text, ci.entity_type, ci.entity_id::text,
 		       ci.channel, ci.cost_usd::float8, ci.metadata, ci.created_at
 		FROM campaign_items ci
 		JOIN campaigns c ON c.id=ci.campaign_id
 		WHERE ci.campaign_id=$1 AND c.project_id=$2
-		ORDER BY ci.created_at DESC`, campaignID, projectID)
+		ORDER BY ci.created_at DESC`+limit, args...)
 	if err != nil {
 		return nil, err
 	}

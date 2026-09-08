@@ -1,5 +1,6 @@
 import { ConnectorForm, ConnectorScheduleControl, RunConnectorButton } from "@/components/integration-controls";
 import { formatDate, formatDateTime, getIntegrationData } from "@/lib/api";
+import Link from "next/link";
 
 export default async function IntegrationsPage() {
   const data = await getIntegrationData();
@@ -12,7 +13,7 @@ export default async function IntegrationsPage() {
           <h1>Source connectors with policy, provenance and scheduling.</h1>
           <p>Every ingestion source has explicit limits, an observable execution history, optional recurring runs and a replaceable provider implementation.</p>
         </div>
-        <a className="button ghost" href="/">← Command Center</a>
+        <Link className="button ghost" href="/">← Command Center</Link>
       </header>
 
       {!data.connected && (

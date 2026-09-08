@@ -64,10 +64,12 @@ func main() {
 			log.Print("DevRelOS worker stopped")
 			return
 		case <-ticker.C:
-			queueScheduledRuns(ctx, store)
-			processAvailable(ctx, store, registry)
-			processAvailableMedia(ctx, store)
-			processAvailableOutreach(ctx, store)
+			// Each stage is guarded independently: a panic in one must not stop
+			// the others, and must not end the worker.
+			guard("schedule", func() { queueScheduledRuns(ctx, store) })
+			guard("connectors", func() { processAvailable(ctx, store, registry) })
+			guard("media", func() { processAvailableMedia(ctx, store) })
+			guard("outreach", func() { processAvailableOutreach(ctx, store) })
 		}
 	}
 }
@@ -85,7 +87,9 @@ func queueScheduledRuns(ctx context.Context, store *storage.Store) {
 
 func processAvailable(ctx context.Context, store *storage.Store, registry *connectorruntime.Registry) {
 	for {
-		processed, err := processNext(ctx, store, registry)
+		processed, err := guardJob("connectors", func() (bool, error) {
+			return processNext(ctx, store, registry)
+		})
 		if err != nil {
 			log.Printf("connector queue error: %v", err)
 			return

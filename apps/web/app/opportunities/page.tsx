@@ -1,6 +1,7 @@
 import { CreateSubmissionDraftButton } from "@/components/cfp-opportunity-action";
 import { formatDate, locationLabel } from "@/lib/api";
 import { getOpportunityData } from "@/lib/opportunity-api";
+import { renderTimestamp } from "@/lib/clock";
 
 function scoreClass(score: number) {
   if (score >= 75) return "opportunity-score high";
@@ -13,7 +14,8 @@ export default async function OpportunitiesPage() {
   const highFitSpeaking = data.speaking.filter((item) => item.score >= 70).length;
   const highFitCFPs = data.cfps.filter((item) => item.score >= 70).length;
   const warm = data.speaking.filter((item) => item.relationship && item.relationship.stage !== "cold").length;
-  const closingSoon = data.cfps.filter((item) => item.cfp.closesAt && new Date(item.cfp.closesAt).getTime() - Date.now() <= 14 * 24 * 60 * 60 * 1000).length;
+  const now = renderTimestamp();
+  const closingSoon = data.cfps.filter((item) => item.cfp.closesAt && new Date(item.cfp.closesAt).getTime() - now <= 14 * 24 * 60 * 60 * 1000).length;
 
   return (
     <div className="page-wrap opportunities-page">
