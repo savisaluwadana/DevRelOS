@@ -66,6 +66,15 @@ func (a *api) createSecret(w http.ResponseWriter, r *http.Request) {
 		writeBadRequest(w, "provider, name and value are required")
 		return
 	}
+	// The associated data binding this ciphertext to its secret joins fields
+	// with a delimiter, so an unconstrained provider or name lets two different
+	// secrets share associated data and decrypt each other's ciphertext.
+	for _, field := range []string{input.Provider, input.Name} {
+		if err := security.ValidateAADField(field); err != nil {
+			writeBadRequest(w, err.Error())
+			return
+		}
+	}
 	box, err := configuredSecretBox()
 	if err != nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "encrypted secret storage is not configured"})
