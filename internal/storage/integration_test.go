@@ -412,3 +412,144 @@ func TestSpeakingCandidatesRespectBudget(t *testing.T) {
 		t.Fatalf("over-cap budget returned %d candidates, want the 400 available", len(clamped))
 	}
 }
+
+// The filter-based list queries carried their own Limit long before the Page
+// type existed, and none of them applied an offset: pages overlapped and an
+// offset past the end still returned a full page. These cover all five.
+func TestFilterBasedListsApplyOffset(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+	projectID := newProject(t, store, "filteroffset-"+t.Name())
+
+	const total = 7
+	for i := 0; i < total; i++ {
+		if _, err := store.pool.Exec(ctx,
+			`INSERT INTO signals (project_id, provider, external_id, title, body, status, occurred_at)
+			 VALUES ($1,'manual',$2,$3,'body','new', now() - make_interval(mins => $4))`,
+			projectID, fmt.Sprintf("ext-%02d", i), fmt.Sprintf("signal-%02d", i), i); err != nil {
+			t.Fatalf("insert signal %d: %v", i, err)
+		}
+		if _, err := store.pool.Exec(ctx,
+			`INSERT INTO work_items (project_id, kind, title, status, source_type)
+			 VALUES ($1,'content_brief',$2,'backlog','manual')`,
+			projectID, fmt.Sprintf("work-%02d", i)); err != nil {
+			t.Fatalf("insert work item %d: %v", i, err)
+		}
+		if _, err := store.pool.Exec(ctx,
+			`INSERT INTO content_assets (project_id, title, channel, format, status)
+			 VALUES ($1,$2,'blog','article','brief')`,
+			projectID, fmt.Sprintf("content-%02d", i)); err != nil {
+			t.Fatalf("insert content asset %d: %v", i, err)
+		}
+		if _, err := store.pool.Exec(ctx,
+			`INSERT INTO feedback_items (project_id, title, status) VALUES ($1,$2,'new')`,
+			projectID, fmt.Sprintf("feedback-%02d", i)); err != nil {
+			t.Fatalf("insert feedback %d: %v", i, err)
+		}
+	}
+
+	// ids collects one page worth of identity strings for a list.
+	type pager func(limit, offset int) ([]string, error)
+
+	pagers := map[string]pager{
+		"signals": func(limit, offset int) ([]string, error) {
+			items, err := store.ListSignals(ctx, projectID, SignalFilter{Limit: limit, Offset: offset})
+			out := make([]string, 0, len(items))
+			for _, i := range items {
+				out = append(out, i.ID)
+			}
+			return out, err
+		},
+		"work items": func(limit, offset int) ([]string, error) {
+			items, err := store.ListWorkItems(ctx, projectID, WorkItemFilter{Limit: limit, Offset: offset})
+			out := make([]string, 0, len(items))
+			for _, i := range items {
+				out = append(out, i.ID)
+			}
+			return out, err
+		},
+		"content assets": func(limit, offset int) ([]string, error) {
+			items, err := store.ListContentAssets(ctx, projectID, ContentAssetFilter{Limit: limit, Offset: offset})
+			out := make([]string, 0, len(items))
+			for _, i := range items {
+				out = append(out, i.ID)
+			}
+			return out, err
+		},
+		"feedback": func(limit, offset int) ([]string, error) {
+			items, err := store.ListFeedback(ctx, projectID, FeedbackFilter{Limit: limit, Offset: offset})
+			out := make([]string, 0, len(items))
+			for _, i := range items {
+				out = append(out, i.ID)
+			}
+			return out, err
+		},
+	}
+
+	for name, page := range pagers {
+		t.Run(name, func(t *testing.T) {
+			seen := map[string]int{}
+			for offset := 0; offset < total; offset += 3 {
+				got, err := page(3, offset)
+				if err != nil {
+					t.Fatalf("offset %d: %v", offset, err)
+				}
+				for _, id := range got {
+					seen[id]++
+				}
+			}
+			if len(seen) != total {
+				t.Fatalf("paging covered %d distinct rows, want %d", len(seen), total)
+			}
+			for id, count := range seen {
+				if count != 1 {
+					t.Fatalf("%s appeared %d times across pages, want once", id, count)
+				}
+			}
+			beyond, err := page(3, 999)
+			if err != nil {
+				t.Fatalf("offset past the end: %v", err)
+			}
+			if len(beyond) != 0 {
+				t.Fatalf("offset past the end returned %d rows, want 0", len(beyond))
+			}
+		})
+	}
+}
+
+func TestListPainPointsAppliesOffset(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+	projectID := newProject(t, store, "ppoffset-"+t.Name())
+
+	const total = 5
+	for i := 0; i < total; i++ {
+		if _, err := store.pool.Exec(ctx,
+			`INSERT INTO pain_points (project_id, key, title, summary, severity, evidence_count, status)
+			 VALUES ($1,$2,$3,'s',$4,1,'active')`,
+			projectID, fmt.Sprintf("key-%02d", i), fmt.Sprintf("pain-%02d", i), 90-i); err != nil {
+			t.Fatalf("insert pain point %d: %v", i, err)
+		}
+	}
+
+	seen := map[string]int{}
+	for offset := 0; offset < total; offset += 2 {
+		items, err := store.ListPainPoints(ctx, projectID, "", 2, offset)
+		if err != nil {
+			t.Fatalf("offset %d: %v", offset, err)
+		}
+		for _, item := range items {
+			seen[item.ID]++
+		}
+	}
+	if len(seen) != total {
+		t.Fatalf("paging covered %d distinct pain points, want %d", len(seen), total)
+	}
+	beyond, err := store.ListPainPoints(ctx, projectID, "", 2, 999)
+	if err != nil {
+		t.Fatalf("offset past the end: %v", err)
+	}
+	if len(beyond) != 0 {
+		t.Fatalf("offset past the end returned %d rows, want 0", len(beyond))
+	}
+}

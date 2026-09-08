@@ -13,12 +13,17 @@ type ContentAssetFilter struct {
 	Status  string
 	Channel string
 	Limit   int
+	Offset  int
 }
 
 func (s *Store) ListContentAssets(ctx context.Context, projectID string, filter ContentAssetFilter) ([]contentdomain.Asset, error) {
 	limit := filter.Limit
 	if limit <= 0 || limit > 500 {
 		limit = 100
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, project_id::text, COALESCE(work_item_id::text,''), channel, format,
@@ -39,7 +44,7 @@ func (s *Store) ListContentAssets(ctx context.Context, projectID string, filter 
 		         END,
 		         scheduled_at NULLS LAST,
 		         updated_at DESC
-		LIMIT $4`, projectID, filter.Status, filter.Channel, limit)
+		LIMIT $4 OFFSET $5`, projectID, filter.Status, filter.Channel, limit, offset)
 	if err != nil {
 		return nil, err
 	}

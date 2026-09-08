@@ -53,7 +53,7 @@ mcp:
 	go run ./services/mcp
 
 web-install:
-	cd apps/web && npm install
+	cd apps/web && npm ci
 
 web:
 	cd apps/web && npm run dev

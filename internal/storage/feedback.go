@@ -12,12 +12,17 @@ type FeedbackFilter struct {
 	Status    string
 	Component string
 	Limit     int
+	Offset    int
 }
 
 func (s *Store) ListFeedback(ctx context.Context, projectID string, filter FeedbackFilter) ([]feedbackdomain.Item, error) {
 	limit := filter.Limit
 	if limit <= 0 || limit > 500 {
 		limit = 200
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, project_id::text, source_type, COALESCE(source_id::text,''), title, summary,
@@ -39,7 +44,7 @@ func (s *Store) ListFeedback(ctx context.Context, projectID string, filter Feedb
 		         impact_score DESC,
 		         frequency_score DESC,
 		         updated_at DESC
-		LIMIT $4`, projectID, filter.Status, filter.Component, limit)
+		LIMIT $4 OFFSET $5`, projectID, filter.Status, filter.Component, limit, offset)
 	if err != nil {
 		return nil, err
 	}

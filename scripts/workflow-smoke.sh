@@ -174,7 +174,38 @@ HF=$(jqf "$(get /dashboard | sed '$d')" '.highFitCfps | length')
 HFS=$(jqf "$(get /dashboard | sed '$d')" '.highFitCfps[0].fitScore')
 [ "${HFS:-0}" -ge 70 ] && ok "panel reports the computed fit score ($HFS)" || bad "panel reports the computed fit score" "got $HFS"
 
-say "== 16. Relationship Radar =="
+say "== 16. List endpoints page correctly =="
+# Regression guard: the filter-based lists (signals, pain-points, work-items,
+# content-assets, feedback) carried their own limit and ignored offset, so pages
+# overlapped and an offset past the end still returned a full page.
+i=1
+while [ $i -le 6 ]; do
+  post /talks "{\"title\":\"Paging probe $i\",\"abstract\":\"a\",\"level\":\"intro\",\"durationMinutes\":20,\"topics\":[\"kubernetes\"],\"status\":\"draft\"}" >/dev/null
+  i=$((i+1))
+done
+for ep in talks signals; do
+  P1=$(jqf "$(get "/$ep?limit=2" | sed '$d')" '[.[].id] | sort | join(",")')
+  P2=$(jqf "$(get "/$ep?limit=2&offset=2" | sed '$d')" '[.[].id] | sort | join(",")')
+  PAST=$(jqf "$(get "/$ep?offset=99999" | sed '$d')" 'length')
+  if [ -n "$P1" ] && [ "$P1" != "$P2" ]; then ok "$ep pages are disjoint"; else bad "$ep pages are disjoint" "offset appears ignored"; fi
+  if [ "${PAST:-1}" = "0" ]; then ok "$ep offset past the end is empty"; else bad "$ep offset past the end is empty" "returned $PAST rows"; fi
+done
+
+say "== 17. Client errors are not 500s =="
+# Regression guard: every database error used to collapse into 500, so a bad
+# enum value was indistinguishable from a real fault.
+EC=$(ccurl -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{"name":"X","eventType":"conference","status":"not-a-status"}' "$API/events")
+[ "$EC" = "400" ] && ok "invalid enum value returns 400" || bad "invalid enum value returns 400" "got $EC"
+UC=$(ccurl -o /dev/null -w '%{http_code}' "$API/campaigns/not-a-uuid/report")
+[ "$UC" = "400" ] && ok "malformed id returns 400" || bad "malformed id returns 400" "got $UC"
+LEAK=$(ccurl -H 'Content-Type: application/json' -d '{"name":"X","eventType":"conference","status":"not-a-status"}' "$API/events")
+if printf '%s' "$LEAK" | grep -qE "SQLSTATE|pgx|relation \""; then
+  bad "no raw database text in errors" "response leaks driver detail"
+else
+  ok "no raw database text in errors"
+fi
+
+say "== 18. Relationship Radar =="
 R=$(get /relationships/radar); step "relationship radar" "$R" 200
 
 printf '\n===== %d passed, %d failed =====\n' "$PASS" "$FAIL"

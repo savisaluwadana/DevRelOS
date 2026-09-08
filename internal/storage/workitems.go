@@ -14,12 +14,17 @@ type WorkItemFilter struct {
 	Status string
 	Kind   string
 	Limit  int
+	Offset int
 }
 
 func (s *Store) ListWorkItems(ctx context.Context, projectID string, filter WorkItemFilter) ([]workdomain.WorkItem, error) {
 	limit := filter.Limit
 	if limit <= 0 || limit > 500 {
 		limit = 100
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, project_id::text, source_type, COALESCE(source_id::text,''), kind,
@@ -39,7 +44,7 @@ func (s *Store) ListWorkItems(ctx context.Context, projectID string, filter Work
 		         priority DESC,
 		         due_at NULLS LAST,
 		         updated_at DESC
-		LIMIT $4`, projectID, filter.Status, filter.Kind, limit)
+		LIMIT $4 OFFSET $5`, projectID, filter.Status, filter.Kind, limit, offset)
 	if err != nil {
 		return nil, err
 	}
