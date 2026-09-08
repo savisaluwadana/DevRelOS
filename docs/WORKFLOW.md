@@ -241,6 +241,14 @@ developers.events.
 Credentials belong in **Access & Security** as encrypted workspace secrets, not
 in environment variables. Run history and failures are visible per connector.
 
+**Only complaint-shaped sources feed pain points.** RSS and release feeds are
+announcement sources: they populate Signal Radar and the content radar, but are
+excluded from pain-point evidence, because friction words like "setup" and
+"configure" are ordinary prose in a blog post. Point connectors at GitHub
+Issues, GitHub Discussions or your developers' forum if pain-point discovery is
+what you want from this loop. See
+[INTEGRATIONS.md](INTEGRATIONS.md) for the full table.
+
 Signal clustering is a **deterministic keyword heuristic**, not an LLM — cluster
 rebuilds are reproducible and the whole product works offline. The trade-off is
 that the topic and friction vocabularies are compiled in, and they are tuned for

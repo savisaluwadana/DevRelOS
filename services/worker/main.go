@@ -227,6 +227,7 @@ func processNext(ctx context.Context, store *storage.Store, registry *connectorr
 				CanonicalURL: record.CanonicalURL, AuthorHandle: record.Normalized.AuthorHandle, AuthorName: record.Normalized.AuthorName,
 				Title: record.Normalized.Title, Body: record.Normalized.Body, OccurredAt: record.SourceTimestamp,
 				Topics: record.Normalized.Topics, EngagementScore: record.Normalized.EngagementScore, Status: "new",
+				SourceShape: string(record.Normalized.Shape),
 			})
 			if signalErr != nil {
 				run.Warnings = append(run.Warnings, fmt.Sprintf("source %s stored but signal upsert failed", record.ExternalID))

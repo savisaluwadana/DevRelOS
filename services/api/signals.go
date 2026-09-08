@@ -72,6 +72,11 @@ func (a *api) createSignal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	input.ProjectID = projectID
+	if strings.TrimSpace(input.SourceShape) == "" {
+		// A human entering a signal by hand is reporting a problem, so it is
+		// eligible as pain-point evidence unless they say otherwise.
+		input.SourceShape = "report"
+	}
 	created, err := a.store.CreateSignal(r.Context(), input)
 	if err != nil {
 		writeError(w, err)

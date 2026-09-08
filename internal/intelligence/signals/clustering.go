@@ -70,6 +70,10 @@ type accumulator struct {
 	lastSeen       *time.Time
 }
 
+// announcementShape mirrors connectors.SourceShapeAnnouncement. It is a local
+// constant so this package does not depend on the connector contract.
+const announcementShape = "announcement"
+
 // ClusterSignals groups signals with a deterministic, explainable heuristic. It intentionally
 // avoids embeddings/LLMs so the baseline product works offline and cluster rebuilds are reproducible.
 func ClusterSignals(items []domain.Signal, now time.Time) []Cluster {
@@ -85,10 +89,26 @@ func ClusterSignalsWith(rules Ruleset, items []domain.Signal, now time.Time) []C
 		if item.Status == "ignored" || strings.TrimSpace(item.Title+item.Body) == "" {
 			continue
 		}
+		// Announcement sources are excluded from pain-point evidence. Friction
+		// vocabulary ("setup", "configure", "complex", "manual") is ordinary
+		// technical prose in a blog post or release note, so keyword matching
+		// cannot tell "how to configure X" from "configuring X is painful".
+		// Those signals stay in Signal Radar; they just are not developer pain.
+		if item.SourceShape == announcementShape {
+			continue
+		}
 
 		text := strings.ToLower(item.Title + " " + item.Body)
+		friction, hasFriction := detectFriction(rules, text)
+		if !hasFriction {
+			// A pain point is defined by friction. A signal that expresses none
+			// stays in Signal Radar but must not manufacture developer pain.
+			continue
+		}
+		// Topic remains best-effort: a real complaint about a subject outside
+		// the vocabulary is still a real complaint, it just lands in the
+		// general bucket.
 		topic := detectTopic(rules, item, text)
-		friction := detectFriction(rules, text)
 		key := topic.Key + ":" + friction.Key
 
 		acc, ok := clusters[key]
@@ -136,9 +156,16 @@ func ClusterSignalsWith(rules Ruleset, items []domain.Signal, now time.Time) []C
 	}
 
 	out := make([]Cluster, 0, len(clusters))
+	minEvidence := rules.MinEvidence
+	if minEvidence < 1 {
+		minEvidence = DefaultMinEvidence
+	}
 	for key, acc := range clusters {
 		count := len(acc.signalIDs)
-		if count == 0 {
+		// These are reported as *recurring* pain points, and the summary text
+		// says so, so a single signal does not qualify. Nine of eighteen
+		// clusters on a real dataset were single-signal.
+		if count < minEvidence {
 			continue
 		}
 		avgRelevance := acc.relevanceTotal / count
@@ -191,7 +218,7 @@ func detectTopic(rules Ruleset, item domain.Signal, text string) topicRule {
 			}
 		}
 		for _, term := range rule.Terms {
-			if strings.Contains(text, term) {
+			if containsTerm(text, term) {
 				score++
 			}
 		}
@@ -203,13 +230,23 @@ func detectTopic(rules Ruleset, item domain.Signal, text string) topicRule {
 	return best
 }
 
-func detectFriction(rules Ruleset, text string) frictionRule {
+// detectFriction reports the best-matching friction rule and whether any
+// friction term actually matched.
+//
+// It used to return a catch-all "recurring developer friction" rule even when
+// bestScore stayed 0, which meant every ingested item became evidence of
+// developer pain regardless of content. Ingesting release tags and blog
+// announcements then produced high-severity pain points built from nothing:
+// "Kubernetes: recurring developer friction" backed by 73 version tags, and
+// "Developer workflow: recurring developer friction" backed by 47 unrelated
+// news headlines.
+func detectFriction(rules Ruleset, text string) (frictionRule, bool) {
 	best := frictionRule{Key: "friction", Label: "recurring developer friction"}
 	bestScore := 0
 	for _, rule := range rules.Frictions {
 		score := 0
 		for _, term := range rule.Terms {
-			if strings.Contains(text, term) {
+			if containsTerm(text, term) {
 				score++
 			}
 		}
@@ -218,7 +255,7 @@ func detectFriction(rules Ruleset, text string) frictionRule {
 			bestScore = score
 		}
 	}
-	return best
+	return best, bestScore > 0
 }
 
 func canonicalTopic(rules Ruleset, value string) string {

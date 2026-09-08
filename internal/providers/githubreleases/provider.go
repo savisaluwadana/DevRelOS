@@ -180,6 +180,7 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 			},
 			Normalized: connectors.NormalizedRecord{
 				Kind:            "signal",
+				Shape:           connectors.SourceShapeAnnouncement,
 				Title:           title,
 				Body:            item.Body,
 				AuthorHandle:    item.Author.Login,
