@@ -16,6 +16,7 @@ import "./media.css";
 import "./access.css";
 import "./campaigns.css";
 import "./calendar.css";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "DevRelOS",
@@ -61,10 +62,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <body>
         <div className="app-shell">
           <aside className="sidebar">
-            <a className="brand" href="/">
+            <Link className="brand" href="/">
               <div className="brand-mark">DR</div>
               <div><strong>DevRelOS</strong><span>Operator Console</span></div>
-            </a>
+            </Link>
             <PrimaryNav items={visibleNav} />
             <div className="sidebar-footer session-footer">
               {sessionsEnabled && workspaceId ? <WorkspaceSwitcher currentWorkspaceId={workspaceId} /> : null}

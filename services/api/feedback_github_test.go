@@ -21,10 +21,14 @@ func TestParseGitHubRepository(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			owner, repo, err := parseGitHubRepository(test.value)
 			if test.wantError {
-				if err == nil { t.Fatalf("expected error") }
+				if err == nil {
+					t.Fatalf("expected error")
+				}
 				return
 			}
-			if err != nil { t.Fatalf("unexpected error: %v", err) }
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			if owner != test.owner || repo != test.repo {
 				t.Fatalf("got %s/%s, want %s/%s", owner, repo, test.owner, test.repo)
 			}

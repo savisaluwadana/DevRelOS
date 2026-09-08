@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -59,6 +60,27 @@ func (w *statusRecorder) Write(data []byte) (int, error) {
 	return n, err
 }
 
+type patternContextKey struct{}
+
+// patternHolder carries the ServeMux-matched route pattern back out to the
+// observability middleware. It cannot be read from the outer request directly:
+// withAuth passes the mux a r.WithContext() clone, so the pattern ServeMux
+// records lands on the clone and the outer request still reports "".
+type patternHolder struct {
+	value string
+}
+
+// withRoutePattern must wrap the ServeMux directly (innermost middleware) so it
+// observes the same *http.Request the mux annotates.
+func withRoutePattern(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+		if holder, ok := r.Context().Value(patternContextKey{}).(*patternHolder); ok && r.Pattern != "" {
+			holder.value = r.Pattern
+		}
+	})
+}
+
 func (a *api) withObservability(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestID := sanitizeRequestID(r.Header.Get("X-Request-ID"))
@@ -69,15 +91,35 @@ func (a *api) withObservability(next http.Handler) http.Handler {
 		r.Header.Set("X-Request-ID", requestID)
 
 		started := time.Now()
-		a.metrics.active.Add(1)
+		holder := &patternHolder{}
 		recorder := &statusRecorder{ResponseWriter: w}
-		next.ServeHTTP(recorder, r)
-		a.metrics.active.Add(-1)
+
+		a.metrics.active.Add(1)
+		func() {
+			// Decrement unconditionally: a panicking handler used to leak the
+			// active-request gauge upward for the life of the process.
+			defer a.metrics.active.Add(-1)
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					// net/http treats ErrAbortHandler as a deliberate abort; re-panic
+					// so the server closes the connection as intended.
+					if recovered == http.ErrAbortHandler {
+						panic(recovered)
+					}
+					log.Printf(`{"request_id":%q,"level":"error","msg":"handler panic","panic":%q}`, requestID, fmt.Sprint(recovered))
+					if recorder.status == 0 {
+						writeJSON(recorder, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+					}
+				}
+			}()
+			next.ServeHTTP(recorder, r.WithContext(context.WithValue(r.Context(), patternContextKey{}, holder)))
+		}()
+
 		if recorder.status == 0 {
 			recorder.status = http.StatusOK
 		}
 		duration := time.Since(started)
-		pattern := r.Pattern
+		pattern := holder.value
 		if pattern == "" {
 			pattern = normalizedFallbackPath(r.URL.Path)
 		}
@@ -115,8 +157,12 @@ func (a *api) metricsHandler(w http.ResponseWriter, _ *http.Request) {
 	}
 	a.metrics.mu.Unlock()
 	sort.Slice(keys, func(i, j int) bool {
-		if keys[i].Pattern != keys[j].Pattern { return keys[i].Pattern < keys[j].Pattern }
-		if keys[i].Method != keys[j].Method { return keys[i].Method < keys[j].Method }
+		if keys[i].Pattern != keys[j].Pattern {
+			return keys[i].Pattern < keys[j].Pattern
+		}
+		if keys[i].Method != keys[j].Method {
+			return keys[i].Method < keys[j].Method
+		}
 		return keys[i].Status < keys[j].Status
 	})
 	fmt.Fprintln(w, "# HELP devrelos_api_requests_total Total API requests.")

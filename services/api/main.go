@@ -12,7 +12,10 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/savisaluwadana/DevRelOS/internal/domain/events"
+	"github.com/savisaluwadana/DevRelOS/internal/intelligence/opportunities"
+	signalsintel "github.com/savisaluwadana/DevRelOS/internal/intelligence/signals"
 	"github.com/savisaluwadana/DevRelOS/internal/storage"
 )
 
@@ -32,6 +35,12 @@ func main() {
 
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("DEVRELOS_REQUIRE_AUTH")), "true") && strings.TrimSpace(os.Getenv("DEVRELOS_API_TOKEN")) == "" {
 		log.Fatal("DEVRELOS_API_TOKEN is required when DEVRELOS_REQUIRE_AUTH=true")
+	}
+
+	// Resolve the clustering vocabulary up front so a malformed override file is
+	// a startup failure rather than a surprise on the first Signal Radar request.
+	if _, err := signalsintel.ActiveRuleset(); err != nil {
+		log.Fatalf("clustering rules: %v", err)
 	}
 
 	a := &api{store: store, metrics: newAPIMetrics(), limiter: newRateLimiterFromEnv()}
@@ -69,7 +78,9 @@ func main() {
 	a.registerCalendarRoutes(mux)
 
 	addr := envOr("DEVRELOS_HTTP_ADDR", ":8080")
-	core := a.withAuth(mux)
+	// withRoutePattern must sit innermost so it sees the same request ServeMux
+	// annotates with the matched pattern; withAuth below passes down a clone.
+	core := a.withAuth(withRoutePattern(mux))
 	core = a.limiter.Middleware(core)
 	core = a.withObservability(core)
 	server := &http.Server{
@@ -115,119 +126,288 @@ func (a *api) projectID(r *http.Request) (string, error) {
 
 func (a *api) dashboard(w http.ResponseWriter, r *http.Request) {
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	d, err := a.store.Dashboard(r.Context(), projectID)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.fillHighFitCFPs(r, &d); err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, d)
+}
+
+// highFitCFPScore is the score at or above which a CFP is worth surfacing on
+// the Command Center.
+const highFitCFPScore = 70
+
+// fillHighFitCFPs derives the Command Center's high-fit panel from the live
+// CFP/talk scorer, which is the only thing that actually computes fit. The
+// stored cfps.fit_score column it used to read is never populated.
+func (a *api) fillHighFitCFPs(r *http.Request, d *events.Dashboard) error {
+	projectID, err := a.projectID(r)
+	if err != nil {
+		return err
+	}
+	cfps, err := a.store.ListCFPs(r.Context(), projectID, storage.AllRows())
+	if err != nil {
+		return err
+	}
+	if len(cfps) == 0 {
+		return nil
+	}
+	eventsList, err := a.store.ListEvents(r.Context(), projectID, storage.AllRows())
+	if err != nil {
+		return err
+	}
+	talks, err := a.store.ListTalks(r.Context(), projectID, storage.AllRows())
+	if err != nil {
+		return err
+	}
+	submissions, err := a.store.ListSubmissions(r.Context(), projectID, storage.AllRows())
+	if err != nil {
+		return err
+	}
+
+	ranked := opportunities.RankCFPs(cfps, eventsList, talks, submissions, time.Now().UTC())
+	seen := map[string]bool{}
+	for _, item := range ranked {
+		if item.Score < highFitCFPScore || item.CFP.Status != "open" || seen[item.CFP.ID] {
+			continue
+		}
+		seen[item.CFP.ID] = true
+		// Surface the score the panel is filtering on, so the UI and the
+		// opportunities workspace agree.
+		score := item.Score
+		cfp := item.CFP
+		cfp.FitScore = &score
+		d.HighFitCFPs = append(d.HighFitCFPs, cfp)
+		if len(d.HighFitCFPs) == 5 {
+			break
+		}
+	}
+	return nil
 }
 
 func (a *api) listEvents(w http.ResponseWriter, r *http.Request) {
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
-	items, err := a.store.ListEvents(r.Context(), projectID)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	items, err := a.store.ListEvents(r.Context(), projectID, requestPage(r))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, items)
 }
 
 func (a *api) createEvent(w http.ResponseWriter, r *http.Request) {
 	var input events.Event
-	if err := decodeJSON(r, &input); err != nil { writeBadRequest(w, err.Error()); return }
-	if strings.TrimSpace(input.Name) == "" { writeBadRequest(w, "name is required"); return }
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if strings.TrimSpace(input.Name) == "" {
+		writeBadRequest(w, "name is required")
+		return
+	}
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	input.ProjectID = projectID
 	created, err := a.store.CreateEvent(r.Context(), input)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusCreated, created)
 }
 
 func (a *api) listCFPs(w http.ResponseWriter, r *http.Request) {
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
-	items, err := a.store.ListCFPs(r.Context(), projectID)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	items, err := a.store.ListCFPs(r.Context(), projectID, requestPage(r))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, items)
 }
 
 func (a *api) createCFP(w http.ResponseWriter, r *http.Request) {
 	var input events.CFP
-	if err := decodeJSON(r, &input); err != nil { writeBadRequest(w, err.Error()); return }
-	if input.EventID == "" { writeBadRequest(w, "eventId is required"); return }
-	if input.FitScore != nil && (*input.FitScore < 0 || *input.FitScore > 100) { writeBadRequest(w, "fitScore must be between 0 and 100"); return }
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if input.EventID == "" {
+		writeBadRequest(w, "eventId is required")
+		return
+	}
+	if input.FitScore != nil && (*input.FitScore < 0 || *input.FitScore > 100) {
+		writeBadRequest(w, "fitScore must be between 0 and 100")
+		return
+	}
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	created, err := a.store.CreateScopedCFP(r.Context(), projectID, input)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusCreated, created)
 }
 
 func (a *api) listTalks(w http.ResponseWriter, r *http.Request) {
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
-	items, err := a.store.ListTalks(r.Context(), projectID)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	items, err := a.store.ListTalks(r.Context(), projectID, requestPage(r))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, items)
 }
 
 func (a *api) createTalk(w http.ResponseWriter, r *http.Request) {
 	var input events.Talk
-	if err := decodeJSON(r, &input); err != nil { writeBadRequest(w, err.Error()); return }
-	if strings.TrimSpace(input.Title) == "" { writeBadRequest(w, "title is required"); return }
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if strings.TrimSpace(input.Title) == "" {
+		writeBadRequest(w, "title is required")
+		return
+	}
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	input.ProjectID = projectID
 	created, err := a.store.CreateTalk(r.Context(), input)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusCreated, created)
 }
 
 func (a *api) listSubmissions(w http.ResponseWriter, r *http.Request) {
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
-	items, err := a.store.ListSubmissions(r.Context(), projectID)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	items, err := a.store.ListSubmissions(r.Context(), projectID, requestPage(r))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, items)
 }
 
 func (a *api) createSubmission(w http.ResponseWriter, r *http.Request) {
 	var input events.Submission
-	if err := decodeJSON(r, &input); err != nil { writeBadRequest(w, err.Error()); return }
-	if input.CFPID == "" || input.TalkID == "" { writeBadRequest(w, "cfpId and talkId are required"); return }
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if input.CFPID == "" || input.TalkID == "" {
+		writeBadRequest(w, "cfpId and talkId are required")
+		return
+	}
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	created, err := a.store.CreateScopedSubmission(r.Context(), projectID, input)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusCreated, created)
 }
 
 func (a *api) updateSubmissionStatus(w http.ResponseWriter, r *http.Request) {
-	var input struct { Status string `json:"status"` }
-	if err := decodeJSON(r, &input); err != nil { writeBadRequest(w, err.Error()); return }
+	var input struct {
+		Status string `json:"status"`
+	}
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
 	allowed := map[string]bool{"draft": true, "needs_work": true, "ready": true, "submitted": true, "accepted": true, "rejected": true, "withdrawn": true}
-	if !allowed[input.Status] { writeBadRequest(w, "invalid submission status"); return }
+	if !allowed[input.Status] {
+		writeBadRequest(w, "invalid submission status")
+		return
+	}
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
-	if err := a.store.UpdateScopedSubmissionStatus(r.Context(), projectID, r.PathValue("id"), input.Status); err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.UpdateScopedSubmissionStatus(r.Context(), projectID, r.PathValue("id"), input.Status); err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": input.Status})
 }
 
 func (a *api) listCommunities(w http.ResponseWriter, r *http.Request) {
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
-	items, err := a.store.ListCommunities(r.Context(), projectID)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	items, err := a.store.ListCommunities(r.Context(), projectID, requestPage(r))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, items)
 }
 
 func (a *api) createCommunity(w http.ResponseWriter, r *http.Request) {
 	var input events.Community
-	if err := decodeJSON(r, &input); err != nil { writeBadRequest(w, err.Error()); return }
-	if strings.TrimSpace(input.Name) == "" { writeBadRequest(w, "name is required"); return }
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if strings.TrimSpace(input.Name) == "" {
+		writeBadRequest(w, "name is required")
+		return
+	}
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	input.ProjectID = projectID
 	created, err := a.store.CreateCommunity(r.Context(), input)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusCreated, created)
 }
 
@@ -252,13 +432,69 @@ func writeError(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 		return
 	}
+
+	// Classify database errors that are caused by the request rather than by
+	// the server. Everything used to collapse into 500 "internal server
+	// error", so a client sending an invalid status value or a malformed UUID
+	// got an opaque server error, could not tell a bad request from a real
+	// fault, and every such request was counted as a server failure in the
+	// metrics.
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23505": // unique_violation
+			writeJSON(w, http.StatusConflict, map[string]string{
+				"error":  "that record already exists",
+				"detail": pgConstraintDetail(pgErr),
+			})
+			return
+		case "23514": // check_violation - an enum or range the schema rejects
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error":  "a field has a value this record type does not allow",
+				"detail": pgConstraintDetail(pgErr),
+			})
+			return
+		case "23503": // foreign_key_violation - a referenced record is missing
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error":  "a referenced record does not exist",
+				"detail": pgConstraintDetail(pgErr),
+			})
+			return
+		case "23502": // not_null_violation
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error":  "a required field is missing",
+				"detail": pgErr.ColumnName,
+			})
+			return
+		case "22P02", // invalid_text_representation, e.g. a malformed UUID
+			"22007", // invalid_datetime_format
+			"22003": // numeric_value_out_of_range
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": "a field is not in the expected format",
+			})
+			return
+		}
+	}
+
 	log.Printf("request failed: %v", err)
 	writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 }
 
+// pgConstraintDetail names the offending constraint or column without leaking
+// SQL, table internals or row values into the response.
+func pgConstraintDetail(pgErr *pgconn.PgError) string {
+	if pgErr.ColumnName != "" {
+		return pgErr.ColumnName
+	}
+	return pgErr.ConstraintName
+}
+
 func withMiddleware(next http.Handler) http.Handler {
+	// Read once at wiring time rather than on every request. The value is a
+	// fixed configured origin, so no Vary: Origin is warranted (and every
+	// response already carries Cache-Control: no-store).
+	origin := envOr("DEVRELOS_CORS_ORIGIN", "http://localhost:3000")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := envOr("DEVRELOS_CORS_ORIGIN", "http://localhost:3000")
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
@@ -276,6 +512,8 @@ func withMiddleware(next http.Handler) http.Handler {
 }
 
 func envOr(key, fallback string) string {
-	if value := os.Getenv(key); value != "" { return value }
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
 	return fallback
 }

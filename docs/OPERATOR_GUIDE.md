@@ -1,5 +1,7 @@
 # DevRelOS Operator Guide
 
+> This guide is the per-workspace **reference**. For how the surfaces connect, the two operating modes and the end-to-end workflow chains, start with the [Workflow Guide](WORKFLOW.md).
+
 This guide explains how to install, configure and use DevRelOS as a day-to-day developer-relations operating system. It covers the supported self-hosted deployment, identity and access, every major workspace in the operator console, the recommended operating workflows, connectors, MCP, media, campaign attribution, security, backups and troubleshooting.
 
 DevRelOS is designed around three operating loops:
@@ -1175,6 +1177,34 @@ GET  /api/v1/campaigns
 GET  /api/v1/relationships/radar
 GET  /api/v1/connectors
 ```
+
+### Paging list endpoints
+
+Every list endpoint accepts `limit` and `offset`, and every list query is
+bounded. Omitting both returns the first 200 rows; `limit` may not exceed 500.
+Out-of-range values fall back to the default rather than erroring.
+
+```text
+GET /api/v1/talks?limit=50
+GET /api/v1/talks?limit=50&offset=50
+```
+
+There is no total count in the response. **A page shorter than the requested
+`limit` means you have reached the end** — keep advancing `offset` by `limit`
+until that happens.
+
+This applies to `events`, `cfps`, `talks`, `submissions`, `communities`,
+`contacts`, `relationships`, `outreach`, `campaigns`, campaign items, `calendar`,
+media clips, `signals`, `pain-points`, `work-items`, `content-assets` and
+`feedback`. Small administrative lists (workspace members, API keys, connectors,
+connector secrets) are unpaged on purpose: they are bounded by team and
+configuration size, and truncating them would hide members rather than page
+them.
+
+Opportunity ranking (`/api/v1/opportunities/*`) deliberately reads the complete
+candidate set rather than a page, because it scores a cross product of
+communities and talks — a truncated input would silently produce wrong
+rankings. This is the one place scale will bite first on a very large project.
 
 The web UI should be preferred for routine operations because it uses the same workflow constraints and makes state visible.
 

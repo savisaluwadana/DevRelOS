@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"html"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -17,6 +16,7 @@ import (
 	"time"
 
 	"github.com/savisaluwadana/DevRelOS/internal/connectors"
+	"github.com/savisaluwadana/DevRelOS/internal/providers/safehttp"
 )
 
 const maxFeedBytes = 2 << 20
@@ -29,7 +29,7 @@ type Provider struct {
 }
 
 func New() *Provider {
-	return &Provider{client: newSafeClient()}
+	return &Provider{client: safehttp.NewClient(20*time.Second, "feed_url")}
 }
 
 func (p *Provider) ID() string { return "rss" }
@@ -48,7 +48,7 @@ func (p *Provider) ValidateConfig(config map[string]any) error {
 	if err != nil {
 		return errors.New("feed_url must be a valid URL")
 	}
-	return validateURL(parsed, p.allowUnsafeLocal)
+	return safehttp.ValidateURL(parsed, "feed_url", p.allowUnsafeLocal)
 }
 
 func (p *Provider) Policy(config map[string]any) connectors.Policy {
@@ -255,74 +255,6 @@ func parseFeed(body []byte) ([]feedEntry, error) {
 	default:
 		return nil, fmt.Errorf("unsupported feed root %q; expected RSS or Atom", root.XMLName.Local)
 	}
-}
-
-func newSafeClient() *http.Client {
-	dialer := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
-	transport := &http.Transport{
-		Proxy:               nil,
-		TLSHandshakeTimeout: 10 * time.Second,
-		IdleConnTimeout:     30 * time.Second,
-		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-			host, port, err := net.SplitHostPort(address)
-			if err != nil {
-				return nil, err
-			}
-			ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
-			if err != nil {
-				return nil, err
-			}
-			if len(ips) == 0 {
-				return nil, errors.New("feed host resolved to no addresses")
-			}
-			for _, resolved := range ips {
-				if !isPublicIP(resolved.IP) {
-					return nil, fmt.Errorf("feed host resolved to blocked address %s", resolved.IP)
-				}
-			}
-			return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
-		},
-	}
-	client := &http.Client{Transport: transport, Timeout: 20 * time.Second}
-	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		if len(via) >= 5 {
-			return errors.New("too many feed redirects")
-		}
-		return validateURL(req.URL, false)
-	}
-	return client
-}
-
-func validateURL(parsed *url.URL, allowUnsafeLocal bool) error {
-	if parsed == nil || parsed.Hostname() == "" {
-		return errors.New("feed_url must include a hostname")
-	}
-	if !allowUnsafeLocal && parsed.Scheme != "https" {
-		return errors.New("feed_url must use https")
-	}
-	if allowUnsafeLocal && parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return errors.New("feed_url must use http or https")
-	}
-	if parsed.User != nil {
-		return errors.New("feed_url must not include user credentials")
-	}
-
-	host := strings.ToLower(strings.TrimSuffix(parsed.Hostname(), "."))
-	if !allowUnsafeLocal && (host == "localhost" || strings.HasSuffix(host, ".localhost")) {
-		return errors.New("feed_url hostname is not allowed")
-	}
-	if ip := net.ParseIP(host); ip != nil && !allowUnsafeLocal && !isPublicIP(ip) {
-		return errors.New("feed_url IP address is not public")
-	}
-	return nil
-}
-
-func isPublicIP(ip net.IP) bool {
-	if ip == nil {
-		return false
-	}
-	return !ip.IsLoopback() && !ip.IsPrivate() && !ip.IsLinkLocalUnicast() &&
-		!ip.IsLinkLocalMulticast() && !ip.IsUnspecified() && !ip.IsMulticast()
 }
 
 func parsePublished(value string) *time.Time {

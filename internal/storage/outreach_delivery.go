@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	domain "github.com/savisaluwadana/DevRelOS/internal/domain/outreach"
 	"github.com/jackc/pgx/v5"
+	domain "github.com/savisaluwadana/DevRelOS/internal/domain/outreach"
 )
 
 func (s *Store) QueueOutreachDelivery(ctx context.Context, projectID, outreachID string) (domain.Delivery, error) {

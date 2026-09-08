@@ -7,9 +7,15 @@ import (
 )
 
 func (s *Store) UpsertCommunity(ctx context.Context, item events.Community, sourceRecordID string) (events.Community, bool, error) {
-	if item.Platform == "" { item.Platform = "manual" }
-	if item.Status == "" { item.Status = "discovered" }
-	if item.Topics == nil { item.Topics = []string{} }
+	if item.Platform == "" {
+		item.Platform = "manual"
+	}
+	if item.Status == "" {
+		item.Status = "discovered"
+	}
+	if item.Topics == nil {
+		item.Topics = []string{}
+	}
 	var inserted bool
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO communities (

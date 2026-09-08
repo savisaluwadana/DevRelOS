@@ -1,6 +1,7 @@
 import OperatorForms from "@/components/operator-forms";
 import SubmissionStatus from "@/components/submission-status";
 import { formatDate, getOperatorData, locationLabel } from "@/lib/api";
+import Link from "next/link";
 
 export default async function ManagePage() {
   const data = await getOperatorData();
@@ -13,7 +14,7 @@ export default async function ManagePage() {
           <h1>Events, talks, communities and submissions.</h1>
           <p>Capture opportunities, score them, attach reusable talks and move the speaking pipeline forward.</p>
         </div>
-        <a className="button ghost" href="/">← Command Center</a>
+        <Link className="button ghost" href="/">← Command Center</Link>
       </header>
 
       {!data.connected && (

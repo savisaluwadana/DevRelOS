@@ -10,21 +10,14 @@ import (
 	domain "github.com/savisaluwadana/DevRelOS/internal/domain/identity"
 )
 
-func (s *Store) CreateUser(ctx context.Context, user domain.User) (domain.User, error) {
-	if user.Status == "" { user.Status = "active" }
-	err := s.pool.QueryRow(ctx, `
-		INSERT INTO users (email, display_name, status)
-		VALUES (lower($1), $2, $3)
-		RETURNING id::text, email, display_name, status, created_at, updated_at`,
-		user.Email, user.DisplayName, user.Status).
-		Scan(&user.ID, &user.Email, &user.DisplayName, &user.Status, &user.CreatedAt, &user.UpdatedAt)
-	return user, err
-}
-
 func (s *Store) CreateWorkspaceUser(ctx context.Context, workspaceID string, user domain.User, role string) (domain.User, error) {
-	if user.Status == "" { user.Status = "active" }
+	if user.Status == "" {
+		user.Status = "active"
+	}
 	tx, err := s.pool.Begin(ctx)
-	if err != nil { return user, err }
+	if err != nil {
+		return user, err
+	}
 	defer tx.Rollback(ctx)
 
 	err = tx.QueryRow(ctx, `
@@ -40,7 +33,9 @@ func (s *Store) CreateWorkspaceUser(ctx context.Context, workspaceID string, use
 			FROM users WHERE lower(email)=lower($1)`, user.Email).
 			Scan(&user.ID, &user.Email, &user.DisplayName, &user.Status, &user.CreatedAt, &user.UpdatedAt)
 	}
-	if err != nil { return user, err }
+	if err != nil {
+		return user, err
+	}
 
 	if _, err = tx.Exec(ctx, `
 		INSERT INTO workspace_memberships (workspace_id, user_id, role)
@@ -49,21 +44,10 @@ func (s *Store) CreateWorkspaceUser(ctx context.Context, workspaceID string, use
 		DO UPDATE SET role=EXCLUDED.role, updated_at=now()`, workspaceID, user.ID, role); err != nil {
 		return user, err
 	}
-	if err = tx.Commit(ctx); err != nil { return user, err }
-	return user, nil
-}
-
-func (s *Store) ListUsers(ctx context.Context) ([]domain.User, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id::text, email, display_name, status, created_at, updated_at FROM users ORDER BY created_at DESC`)
-	if err != nil { return nil, err }
-	defer rows.Close()
-	items := make([]domain.User, 0)
-	for rows.Next() {
-		var item domain.User
-		if err := rows.Scan(&item.ID, &item.Email, &item.DisplayName, &item.Status, &item.CreatedAt, &item.UpdatedAt); err != nil { return nil, err }
-		items = append(items, item)
+	if err = tx.Commit(ctx); err != nil {
+		return user, err
 	}
-	return items, rows.Err()
+	return user, nil
 }
 
 func (s *Store) ListWorkspaceUsers(ctx context.Context, workspaceID string) ([]domain.User, error) {
@@ -71,12 +55,16 @@ func (s *Store) ListWorkspaceUsers(ctx context.Context, workspaceID string) ([]d
 		SELECT u.id::text, u.email, u.display_name, u.status, u.created_at, u.updated_at
 		FROM users u JOIN workspace_memberships m ON m.user_id=u.id
 		WHERE m.workspace_id=$1 ORDER BY u.email`, workspaceID)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 	items := make([]domain.User, 0)
 	for rows.Next() {
 		var item domain.User
-		if err := rows.Scan(&item.ID, &item.Email, &item.DisplayName, &item.Status, &item.CreatedAt, &item.UpdatedAt); err != nil { return nil, err }
+		if err := rows.Scan(&item.ID, &item.Email, &item.DisplayName, &item.Status, &item.CreatedAt, &item.UpdatedAt); err != nil {
+			return nil, err
+		}
 		items = append(items, item)
 	}
 	return items, rows.Err()
@@ -101,12 +89,16 @@ func (s *Store) ListMemberships(ctx context.Context, workspaceID string) ([]doma
 		JOIN users u ON u.id=m.user_id
 		WHERE m.workspace_id=$1
 		ORDER BY CASE m.role WHEN 'owner' THEN 1 WHEN 'admin' THEN 2 WHEN 'editor' THEN 3 ELSE 4 END, u.email`, workspaceID)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 	items := make([]domain.Membership, 0)
 	for rows.Next() {
 		var item domain.Membership
-		if err := rows.Scan(&item.WorkspaceID, &item.WorkspaceName, &item.UserID, &item.Email, &item.DisplayName, &item.Role, &item.CreatedAt, &item.UpdatedAt); err != nil { return nil, err }
+		if err := rows.Scan(&item.WorkspaceID, &item.WorkspaceName, &item.UserID, &item.Email, &item.DisplayName, &item.Role, &item.CreatedAt, &item.UpdatedAt); err != nil {
+			return nil, err
+		}
 		items = append(items, item)
 	}
 	return items, rows.Err()
@@ -146,12 +138,16 @@ func (s *Store) ListAPIKeys(ctx context.Context, userID string) ([]domain.APIKey
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, user_id::text, name, key_prefix, expires_at, last_used_at, revoked_at, created_at
 		FROM api_keys WHERE user_id=$1 ORDER BY created_at DESC`, userID)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 	items := make([]domain.APIKey, 0)
 	for rows.Next() {
 		var item domain.APIKey
-		if err := rows.Scan(&item.ID, &item.UserID, &item.Name, &item.KeyPrefix, &item.ExpiresAt, &item.LastUsedAt, &item.RevokedAt, &item.CreatedAt); err != nil { return nil, err }
+		if err := rows.Scan(&item.ID, &item.UserID, &item.Name, &item.KeyPrefix, &item.ExpiresAt, &item.LastUsedAt, &item.RevokedAt, &item.CreatedAt); err != nil {
+			return nil, err
+		}
 		items = append(items, item)
 	}
 	return items, rows.Err()
@@ -165,22 +161,32 @@ func (s *Store) ResolveAPIKey(ctx context.Context, secretHash string) (domain.Pr
 		WHERE k.secret_hash=$1 AND k.revoked_at IS NULL
 		  AND (k.expires_at IS NULL OR k.expires_at > now()) AND u.status='active'`, secretHash).
 		Scan(&principal.UserID, &principal.Email, &principal.DisplayName, &principal.Status, &principal.APIKeyID)
-	if err != nil { return principal, err }
+	if err != nil {
+		return principal, err
+	}
 	_, _ = s.pool.Exec(ctx, `UPDATE api_keys SET last_used_at=now() WHERE id=$1`, principal.APIKeyID)
 	return principal, nil
 }
 
 func (s *Store) RevokeAPIKey(ctx context.Context, userID, keyID string) error {
 	command, err := s.pool.Exec(ctx, `UPDATE api_keys SET revoked_at=COALESCE(revoked_at, now()) WHERE id=$1 AND user_id=$2`, keyID, userID)
-	if err != nil { return err }
-	if command.RowsAffected() == 0 { return pgx.ErrNoRows }
+	if err != nil {
+		return err
+	}
+	if command.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
 	return nil
 }
 
 func (s *Store) AppendAuditEvent(ctx context.Context, event domain.AuditEvent) error {
-	if event.Metadata == nil { event.Metadata = map[string]any{} }
+	if event.Metadata == nil {
+		event.Metadata = map[string]any{}
+	}
 	metadata, err := json.Marshal(event.Metadata)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	_, err = s.pool.Exec(ctx, `
 		INSERT INTO audit_events (workspace_id, actor_user_id, actor_kind, action, resource_type, resource_id, metadata)
 		VALUES (NULLIF($1,'')::uuid, NULLIF($2,'')::uuid, $3,$4,$5,$6,$7::jsonb)`,
@@ -189,25 +195,35 @@ func (s *Store) AppendAuditEvent(ctx context.Context, event domain.AuditEvent) e
 }
 
 func (s *Store) ListAuditEvents(ctx context.Context, workspaceID string, limit int) ([]domain.AuditEvent, error) {
-	if limit < 1 { limit = 100 }
-	if limit > 500 { limit = 500 }
+	if limit < 1 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT a.id::text, COALESCE(a.workspace_id::text,''), COALESCE(a.actor_user_id::text,''), a.actor_kind,
 		       COALESCE(u.email,''), a.action, a.resource_type, a.resource_id, a.metadata, a.created_at
 		FROM audit_events a LEFT JOIN users u ON u.id=a.actor_user_id
 		WHERE a.workspace_id=$1
 		ORDER BY a.created_at DESC LIMIT $2`, workspaceID, limit)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 	items := make([]domain.AuditEvent, 0)
 	for rows.Next() {
 		var item domain.AuditEvent
 		var raw []byte
 		if err := rows.Scan(&item.ID, &item.WorkspaceID, &item.ActorUserID, &item.ActorKind, &item.ActorEmail,
-			&item.Action, &item.ResourceType, &item.ResourceID, &raw, &item.CreatedAt); err != nil { return nil, err }
+			&item.Action, &item.ResourceType, &item.ResourceID, &raw, &item.CreatedAt); err != nil {
+			return nil, err
+		}
 		item.Metadata = map[string]any{}
 		if len(raw) > 0 {
-			if err := json.Unmarshal(raw, &item.Metadata); err != nil { return nil, err }
+			if err := json.Unmarshal(raw, &item.Metadata); err != nil {
+				return nil, err
+			}
 		}
 		items = append(items, item)
 	}

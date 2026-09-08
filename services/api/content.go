@@ -26,6 +26,7 @@ func (a *api) listContentAssets(w http.ResponseWriter, r *http.Request) {
 		Status:  strings.TrimSpace(r.URL.Query().Get("status")),
 		Channel: strings.TrimSpace(r.URL.Query().Get("channel")),
 		Limit:   intQuery(r, "limit", 200),
+		Offset:  intQuery(r, "offset", 0),
 	})
 	if err != nil {
 		writeError(w, err)

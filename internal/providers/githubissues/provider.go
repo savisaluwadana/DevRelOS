@@ -2,7 +2,6 @@ package githubissues
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/savisaluwadana/DevRelOS/internal/connectors"
 	"github.com/savisaluwadana/DevRelOS/internal/providers/githubauth"
+	"github.com/savisaluwadana/DevRelOS/internal/providers/safehttp"
 )
 
 const defaultBaseURL = "https://api.github.com"
@@ -35,9 +35,8 @@ func (p *Provider) Capabilities() []connectors.Capability {
 
 func (p *Provider) ValidateConfig(config map[string]any) error {
 	repository, _ := config["repository"].(string)
-	parts := strings.Split(strings.Trim(strings.TrimSpace(repository), "/"), "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return errors.New("repository must use owner/repo format")
+	if _, err := githubauth.ValidateRepository(repository); err != nil {
+		return err
 	}
 	if state, _ := config["state"].(string); state != "" && state != "open" && state != "closed" && state != "all" {
 		return errors.New("state must be open, closed or all")
@@ -64,18 +63,18 @@ func (p *Provider) Policy(config map[string]any) connectors.Policy {
 }
 
 type issue struct {
-	Number      int        `json:"number"`
-	Title       string     `json:"title"`
-	Body        string     `json:"body"`
-	HTMLURL     string     `json:"html_url"`
-	State       string     `json:"state"`
-	Comments    int        `json:"comments"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-	User        user       `json:"user"`
-	Labels      []label    `json:"labels"`
-	Reactions   reactions  `json:"reactions"`
-	PullRequest *struct{}  `json:"pull_request"`
+	Number      int       `json:"number"`
+	Title       string    `json:"title"`
+	Body        string    `json:"body"`
+	HTMLURL     string    `json:"html_url"`
+	State       string    `json:"state"`
+	Comments    int       `json:"comments"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	User        user      `json:"user"`
+	Labels      []label   `json:"labels"`
+	Reactions   reactions `json:"reactions"`
+	PullRequest *struct{} `json:"pull_request"`
 }
 
 type user struct {
@@ -150,7 +149,7 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 	}
 
 	var payload []issue
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	if err := safehttp.DecodeJSON(resp.Body, &payload); err != nil {
 		return connectors.FetchResult{}, err
 	}
 

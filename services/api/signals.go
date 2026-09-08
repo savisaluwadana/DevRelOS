@@ -33,6 +33,7 @@ func (a *api) listSignals(w http.ResponseWriter, r *http.Request) {
 		Topic:    strings.TrimSpace(r.URL.Query().Get("topic")),
 		Query:    strings.TrimSpace(r.URL.Query().Get("q")),
 		Limit:    intQuery(r, "limit", 100),
+		Offset:   intQuery(r, "offset", 0),
 	}
 	items, err := a.store.ListSignals(r.Context(), projectID, filter)
 	if err != nil {
@@ -111,7 +112,8 @@ func (a *api) listPainPoints(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	items, err := a.store.ListPainPoints(
-		r.Context(), projectID, strings.TrimSpace(r.URL.Query().Get("status")), intQuery(r, "limit", 100),
+		r.Context(), projectID, strings.TrimSpace(r.URL.Query().Get("status")),
+		intQuery(r, "limit", 100), intQuery(r, "offset", 0),
 	)
 	if err != nil {
 		writeError(w, err)
@@ -145,7 +147,14 @@ func (a *api) rebuildPainPoints(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	clusters := intelligence.ClusterSignals(items, time.Now().UTC())
+	rules, err := intelligence.ActiveRuleset()
+	if err != nil {
+		// A bad rules file is a configuration error, not a reason to silently
+		// cluster with the wrong vocabulary.
+		writeError(w, err)
+		return
+	}
+	clusters := intelligence.ClusterSignalsWith(rules, items, time.Now().UTC())
 	persistable := make([]storage.PainPointCluster, 0, len(clusters))
 	for _, cluster := range clusters {
 		persistable = append(persistable, storage.PainPointCluster{
@@ -160,7 +169,7 @@ func (a *api) rebuildPainPoints(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"signalsConsidered": len(items),
-		"clustersCreated":  len(clusters),
+		"clustersCreated":   len(clusters),
 	})
 }
 

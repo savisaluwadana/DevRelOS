@@ -2,7 +2,6 @@ package bluesky
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,16 +10,20 @@ import (
 	"time"
 
 	"github.com/savisaluwadana/DevRelOS/internal/connectors"
+	"github.com/savisaluwadana/DevRelOS/internal/providers/safehttp"
 )
 
 const defaultBaseURL = "https://public.api.bsky.app"
 
 type Provider struct {
 	client *http.Client
+	// allowUnsafeLocal relaxes destination validation for tests and local
+	// fixtures. It must never be set from operator configuration.
+	allowUnsafeLocal bool
 }
 
 func New() *Provider {
-	return &Provider{client: &http.Client{Timeout: 20 * time.Second}}
+	return &Provider{client: safehttp.NewClient(20*time.Second, "base_url")}
 }
 
 func (p *Provider) ID() string { return "bluesky" }
@@ -36,8 +39,14 @@ func (p *Provider) ValidateConfig(config map[string]any) error {
 	}
 	if baseURL, ok := config["base_url"].(string); ok && baseURL != "" {
 		parsed, err := url.Parse(baseURL)
-		if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
-			return errors.New("base_url must be an https URL")
+		if err != nil {
+			return errors.New("base_url must be a valid URL")
+		}
+		// base_url is operator-supplied, so it needs the same destination
+		// validation the RSS feed URL gets: scheme, credentials, and private or
+		// link-local addresses (cloud instance metadata lives on one).
+		if err := safehttp.ValidateURL(parsed, "base_url", p.allowUnsafeLocal); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -99,7 +108,8 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 		return connectors.FetchResult{}, err
 	}
 	params := endpoint.Query()
-	params.Set("q", strings.TrimSpace(config["query"].(string)))
+	query, _ := config["query"].(string)
+	params.Set("q", strings.TrimSpace(query))
 	params.Set("limit", fmt.Sprintf("%d", limit))
 	params.Set("sort", "latest")
 	if request.Cursor != "" {
@@ -124,7 +134,7 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 	}
 
 	var payload searchResponse
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	if err := safehttp.DecodeJSON(resp.Body, &payload); err != nil {
 		return connectors.FetchResult{}, err
 	}
 
@@ -153,13 +163,13 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 			CanonicalURL:    canonicalURL,
 			SourceTimestamp: timestamp,
 			Payload: map[string]any{
-				"uri": post.URI,
-				"cid": post.CID,
-				"author_did": post.Author.DID,
-				"reply_count": post.ReplyCount,
+				"uri":          post.URI,
+				"cid":          post.CID,
+				"author_did":   post.Author.DID,
+				"reply_count":  post.ReplyCount,
 				"repost_count": post.RepostCount,
-				"like_count": post.LikeCount,
-				"quote_count": post.QuoteCount,
+				"like_count":   post.LikeCount,
+				"quote_count":  post.QuoteCount,
 			},
 			Normalized: connectors.NormalizedRecord{
 				Kind:            "signal",

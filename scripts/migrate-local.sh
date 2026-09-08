@@ -18,6 +18,12 @@ for file in migrations/*.up.sql; do
     continue
   fi
   echo "applying migration $version"
-  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f "$file"
-  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "INSERT INTO schema_migrations(version) VALUES ('${version}')"
+  # Apply the migration and record it in ONE transaction. Running these as two
+  # psql invocations left a window where a crash in between applied the schema
+  # change without recording it, so the next run re-applied it and failed on
+  # CREATE TABLE / ADD COLUMN. Same fix as scripts/migrate.sh.
+  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 <<SQL
+\i ${file}
+INSERT INTO schema_migrations(version) VALUES ('${version}');
+SQL
 done

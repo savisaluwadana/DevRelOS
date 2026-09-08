@@ -20,13 +20,13 @@ type CFPScoreBreakdown struct {
 }
 
 type CFPOpportunity struct {
-	CFP                 events.CFP            `json:"cfp"`
-	Event               events.Event          `json:"event"`
-	Talk                events.Talk           `json:"talk"`
-	Score               int                   `json:"score"`
-	Breakdown           CFPScoreBreakdown     `json:"breakdown"`
-	Reasons             []string              `json:"reasons"`
-	ExistingSubmission  *events.Submission    `json:"existingSubmission,omitempty"`
+	CFP                events.CFP         `json:"cfp"`
+	Event              events.Event       `json:"event"`
+	Talk               events.Talk        `json:"talk"`
+	Score              int                `json:"score"`
+	Breakdown          CFPScoreBreakdown  `json:"breakdown"`
+	Reasons            []string           `json:"reasons"`
+	ExistingSubmission *events.Submission `json:"existingSubmission,omitempty"`
 }
 
 func RankCFPs(cfps []events.CFP, allEvents []events.Event, talks []events.Talk, submissions []events.Submission, now time.Time) []CFPOpportunity {

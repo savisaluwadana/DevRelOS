@@ -1,4 +1,5 @@
 import { calendarKindLabels, getCalendar, type CalendarItem } from "@/lib/calendar-api";
+import { renderTimestamp } from "@/lib/clock";
 
 function dayKey(value: string) {
   return value.slice(0, 10);
@@ -19,7 +20,7 @@ function itemClass(item: CalendarItem) {
 export default async function CalendarPage() {
   const result = await getCalendar();
   const items = result.data?.items ?? [];
-  const now = Date.now();
+  const now = renderTimestamp();
   const sevenDays = now + 7 * 24 * 60 * 60 * 1000;
   const overdue = items.filter((item) => new Date(item.startsAt).getTime() < now && ["cfp", "work_item", "relationship_follow_up"].includes(item.kind)).length;
   const nextSeven = items.filter((item) => {

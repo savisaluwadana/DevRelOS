@@ -14,12 +14,17 @@ type SignalFilter struct {
 	Topic    string
 	Query    string
 	Limit    int
+	Offset   int
 }
 
 func (s *Store) ListSignals(ctx context.Context, projectID string, filter SignalFilter) ([]domain.Signal, error) {
 	limit := filter.Limit
 	if limit <= 0 || limit > 500 {
 		limit = 100
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
 	}
 
 	rows, err := s.pool.Query(ctx, `
@@ -34,7 +39,7 @@ func (s *Store) ListSignals(ctx context.Context, projectID string, filter Signal
 		  AND ($4='' OR $4=ANY(topics))
 		  AND ($5='' OR title ILIKE '%%' || $5 || '%%' OR body ILIKE '%%' || $5 || '%%')
 		ORDER BY COALESCE(occurred_at, created_at) DESC, engagement_score DESC
-		LIMIT $6`, projectID, filter.Status, filter.Provider, filter.Topic, filter.Query, limit)
+		LIMIT $6 OFFSET $7`, projectID, filter.Status, filter.Provider, filter.Topic, filter.Query, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -104,9 +109,12 @@ func (s *Store) UpdateSignalStatus(ctx context.Context, id, projectID, status st
 	return nil
 }
 
-func (s *Store) ListPainPoints(ctx context.Context, projectID, status string, limit int) ([]domain.PainPoint, error) {
+func (s *Store) ListPainPoints(ctx context.Context, projectID, status string, limit, offset int) ([]domain.PainPoint, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, project_id::text, key, title, summary, persona, severity, trend_score,
@@ -114,7 +122,7 @@ func (s *Store) ListPainPoints(ctx context.Context, projectID, status string, li
 		FROM pain_points
 		WHERE project_id=$1 AND ($2='' OR status=$2)
 		ORDER BY severity DESC, trend_score DESC, evidence_count DESC
-		LIMIT $3`, projectID, status, limit)
+		LIMIT $3 OFFSET $4`, projectID, status, limit, offset)
 	if err != nil {
 		return nil, err
 	}

@@ -9,13 +9,15 @@ import (
 	domain "github.com/savisaluwadana/DevRelOS/internal/domain/outreach"
 )
 
-func (s *Store) ListContacts(ctx context.Context, workspaceID string) ([]domain.Contact, error) {
+func (s *Store) ListContacts(ctx context.Context, workspaceID string, page Page) ([]domain.Contact, error) {
+	limit, limitArgs := page.clause(2)
+	args := append([]any{workspaceID}, limitArgs...)
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, workspace_id::text, name, COALESCE(role,''), COALESCE(email,''),
 		       COALESCE(public_profile_url,''), COALESCE(source_url,''), do_not_contact,
 		       created_at, updated_at
 		FROM contacts WHERE workspace_id=$1
-		ORDER BY do_not_contact, name`, workspaceID)
+		ORDER BY do_not_contact, name`+limit, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +45,9 @@ func (s *Store) CreateContact(ctx context.Context, item domain.Contact) (domain.
 	return item, err
 }
 
-func (s *Store) ListRelationships(ctx context.Context, projectID string) ([]domain.Relationship, error) {
+func (s *Store) ListRelationships(ctx context.Context, projectID string, page Page) ([]domain.Relationship, error) {
+	limit, limitArgs := page.clause(2)
+	args := append([]any{projectID}, limitArgs...)
 	rows, err := s.pool.Query(ctx, `
 		SELECT r.id::text, r.project_id::text, COALESCE(r.community_id::text,''), COALESCE(c.name,''),
 		       COALESCE(r.contact_id::text,''), COALESCE(ct.name,''), r.stage, r.strength,
@@ -52,7 +56,7 @@ func (s *Store) ListRelationships(ctx context.Context, projectID string) ([]doma
 		LEFT JOIN communities c ON c.id=r.community_id
 		LEFT JOIN contacts ct ON ct.id=r.contact_id
 		WHERE r.project_id=$1
-		ORDER BY r.next_follow_up_at NULLS LAST, r.strength DESC, r.updated_at DESC`, projectID)
+		ORDER BY r.next_follow_up_at NULLS LAST, r.strength DESC, r.updated_at DESC`+limit, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +156,9 @@ func (s *Store) ListTouchpoints(ctx context.Context, projectID, relationshipID s
 	return items, rows.Err()
 }
 
-func (s *Store) ListOutreach(ctx context.Context, projectID string) ([]domain.Outreach, error) {
+func (s *Store) ListOutreach(ctx context.Context, projectID string, page Page) ([]domain.Outreach, error) {
+	limit, limitArgs := page.clause(2)
+	args := append([]any{projectID}, limitArgs...)
 	rows, err := s.pool.Query(ctx, `
 		SELECT o.id::text, o.project_id::text, COALESCE(o.community_id::text,''), COALESCE(c.name,''),
 		       COALESCE(o.contact_id::text,''), COALESCE(ct.name,''), COALESCE(o.talk_id::text,''), COALESCE(t.title,''),
@@ -164,7 +170,7 @@ func (s *Store) ListOutreach(ctx context.Context, projectID string) ([]domain.Ou
 		LEFT JOIN talks t ON t.id=o.talk_id
 		WHERE o.project_id=$1
 		ORDER BY CASE o.status WHEN 'needs_approval' THEN 0 WHEN 'draft' THEN 1 WHEN 'approved' THEN 2 ELSE 3 END,
-		         o.updated_at DESC`, projectID)
+		         o.updated_at DESC`+limit, args...)
 	if err != nil {
 		return nil, err
 	}

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/savisaluwadana/DevRelOS/internal/intelligence/opportunities"
+	"github.com/savisaluwadana/DevRelOS/internal/storage"
 )
 
 func (a *api) listSpeakingOpportunities(w http.ResponseWriter, r *http.Request) {
@@ -15,30 +16,34 @@ func (a *api) listSpeakingOpportunities(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	communities, err := a.store.ListCommunities(r.Context(), projectID)
+	minScore := boundedIntQuery(r, "minScore", 0, 0, 100)
+	limit := boundedIntQuery(r, "limit", 50, 1, 200)
+
+	// Candidate selection happens in SQL and is bounded, so the request no
+	// longer materialises the community x talk cross product to return 50 rows.
+	candidates, err := a.store.ListSpeakingCandidates(r.Context(), projectID, storage.SpeakingCandidateBudget(limit))
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	talks, err := a.store.ListTalks(r.Context(), projectID)
+	// Relationships and outreach are read per community rather than per pair,
+	// so these stay linear in project size.
+	relationships, err := a.store.ListRelationships(r.Context(), projectID, storage.AllRows())
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	relationships, err := a.store.ListRelationships(r.Context(), projectID)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	outreachItems, err := a.store.ListOutreach(r.Context(), projectID)
+	outreachItems, err := a.store.ListOutreach(r.Context(), projectID, storage.AllRows())
 	if err != nil {
 		writeError(w, err)
 		return
 	}
 
-	items := opportunities.RankSpeaking(communities, talks, relationships, outreachItems, time.Now().UTC())
-	minScore := boundedIntQuery(r, "minScore", 0, 0, 100)
-	limit := boundedIntQuery(r, "limit", 50, 1, 200)
+	pairs := make([]opportunities.Pair, 0, len(candidates))
+	for _, candidate := range candidates {
+		pairs = append(pairs, opportunities.Pair{Community: candidate.Community, Talk: candidate.Talk})
+	}
+	items := opportunities.RankSpeakingPairs(pairs, relationships, outreachItems, time.Now().UTC())
 
 	filtered := make([]opportunities.SpeakingOpportunity, 0, min(limit, len(items)))
 	for _, item := range items {
@@ -60,22 +65,22 @@ func (a *api) listCFPOpportunities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cfps, err := a.store.ListCFPs(r.Context(), projectID)
+	cfps, err := a.store.ListCFPs(r.Context(), projectID, storage.AllRows())
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	eventsList, err := a.store.ListEvents(r.Context(), projectID)
+	eventsList, err := a.store.ListEvents(r.Context(), projectID, storage.AllRows())
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	talks, err := a.store.ListTalks(r.Context(), projectID)
+	talks, err := a.store.ListTalks(r.Context(), projectID, storage.AllRows())
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	submissions, err := a.store.ListSubmissions(r.Context(), projectID)
+	submissions, err := a.store.ListSubmissions(r.Context(), projectID, storage.AllRows())
 	if err != nil {
 		writeError(w, err)
 		return

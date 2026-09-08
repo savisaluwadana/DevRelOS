@@ -198,6 +198,35 @@ go run ./services/mcp
 
 See [MCP.md](MCP.md) for the tool catalog.
 
+## Running the tests
+
+```bash
+go test ./...
+```
+
+Storage integration tests need a real PostgreSQL and are **skipped** unless
+`DEVRELOS_TEST_DATABASE_URL` is set. They prove the SQL is valid and that
+project-scoped queries really are scoped — properties no unit test can check.
+Point them at a scratch database the tests may create tables in:
+
+```bash
+createdb devrelos_test
+DEVRELOS_TEST_DATABASE_URL="postgres://localhost:5432/devrelos_test?sslmode=disable" go test ./internal/storage/
+```
+
+CI runs them against a PostgreSQL service container, plus `gofmt`, `go vet` and
+`go test -race`.
+
+Web checks:
+
+```bash
+cd apps/web
+npm ci          # installs exactly the committed lockfile
+npm run lint
+npx tsc --noEmit
+npm run build
+```
+
 ## Native local development
 
 ```bash

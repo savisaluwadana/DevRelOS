@@ -8,7 +8,9 @@ The product is designed around three loops:
 2. **Engage** — plan talks, outreach, community activity, content, product feedback and campaigns.
 3. **Measure** — connect real DevRel work to replies, accepted talks, shipped feedback, campaign outcomes and follow-up.
 
-> New to DevRelOS? Start with the **[complete Operator Guide](docs/OPERATOR_GUIDE.md)**. It covers setup, every workspace, recommended workflows, connectors, MCP, security, backups and troubleshooting.
+> **New to DevRelOS?** Read the **[Workflow Guide](docs/WORKFLOW.md)** first — it explains the two operating modes, how work flows between the surfaces, and what a day and a week actually look like.
+>
+> For per-workspace reference detail, see the **[complete Operator Guide](docs/OPERATOR_GUIDE.md)**: setup, every workspace, connectors, MCP, security, backups and troubleshooting.
 
 ## Current beta
 
@@ -136,7 +138,8 @@ See [Security](docs/SECURITY.md) for the trust model and supported production bo
 
 ## Key docs
 
-- **[Complete Operator Guide](docs/OPERATOR_GUIDE.md)**
+- **[Workflow Guide](docs/WORKFLOW.md)** — operating modes, how the loops connect, the five workflow chains
+- **[Complete Operator Guide](docs/OPERATOR_GUIDE.md)** — per-workspace reference
 - [Running DevRelOS](docs/RUNNING.md)
 - [Security](docs/SECURITY.md)
 - [Product scope](docs/PRODUCT.md)

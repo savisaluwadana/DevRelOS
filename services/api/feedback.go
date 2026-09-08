@@ -28,6 +28,7 @@ func (a *api) listFeedback(w http.ResponseWriter, r *http.Request) {
 		Status:    strings.TrimSpace(r.URL.Query().Get("status")),
 		Component: strings.TrimSpace(r.URL.Query().Get("component")),
 		Limit:     intQuery(r, "limit", 200),
+		Offset:    intQuery(r, "offset", 0),
 	})
 	if err != nil {
 		writeError(w, err)

@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	domain "github.com/savisaluwadana/DevRelOS/internal/domain/connectors"
 	"github.com/jackc/pgx/v5"
+	domain "github.com/savisaluwadana/DevRelOS/internal/domain/connectors"
 )
 
 func (s *Store) DefaultWorkspaceID(ctx context.Context) (string, error) {
@@ -84,48 +84,6 @@ func (s *Store) UpdateConnectorSecret(ctx context.Context, workspaceID, connecto
 		return pgx.ErrNoRows
 	}
 	return nil
-}
-
-func (s *Store) ListConnectorRuns(ctx context.Context, connectorID string) ([]domain.Run, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT id::text, connector_id::text, status, COALESCE(cursor,''), requests_made,
-		       items_fetched, items_created, items_updated, items_skipped, provider_cost_usd,
-		       warnings, COALESCE(error,''), started_at, finished_at, created_at
-		FROM connector_runs
-		WHERE connector_id=$1
-		ORDER BY created_at DESC
-		LIMIT 100`, connectorID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	items := make([]domain.Run, 0)
-	for rows.Next() {
-		var item domain.Run
-		var warningsJSON []byte
-		if err := rows.Scan(&item.ID, &item.ConnectorID, &item.Status, &item.Cursor, &item.RequestsMade,
-			&item.ItemsFetched, &item.ItemsCreated, &item.ItemsUpdated, &item.ItemsSkipped,
-			&item.ProviderCostUSD, &warningsJSON, &item.Error, &item.StartedAt, &item.FinishedAt,
-			&item.CreatedAt); err != nil {
-			return nil, err
-		}
-		item.Warnings = []string{}
-		_ = json.Unmarshal(warningsJSON, &item.Warnings)
-		items = append(items, item)
-	}
-	return items, rows.Err()
-}
-
-func (s *Store) QueueConnectorRun(ctx context.Context, connectorID string) (domain.Run, error) {
-	var run domain.Run
-	run.ConnectorID = connectorID
-	run.Status = "queued"
-	err := s.pool.QueryRow(ctx, `
-		INSERT INTO connector_runs (connector_id, status)
-		VALUES ($1,'queued')
-		RETURNING id::text, created_at`, connectorID).Scan(&run.ID, &run.CreatedAt)
-	return run, err
 }
 
 func (s *Store) UpsertSourceRecord(ctx context.Context, item domain.SourceRecord) (domain.SourceRecord, bool, error) {

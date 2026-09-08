@@ -12,20 +12,56 @@ permissions:
 jobs:
   go:
     runs-on: ubuntu-latest
+    # The storage integration tests need a real PostgreSQL: they are the only
+    # thing that can prove the SQL is valid and that project scoping holds.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: devrelos
+          POSTGRES_PASSWORD: devrelos
+          POSTGRES_DB: devrelos_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: false
-      - name: Resolve modules
+          cache: true
+      # Verify the committed go.mod/go.sum instead of regenerating them. The old
+      # `go mod tidy` step mutated dependencies inside CI, so a missing or stale
+      # go.sum could never fail the build.
+      - name: Download and verify modules
+        run: |
+          go mod download
+          go mod verify
+      - name: Check go.mod/go.sum are tidy
         run: |
           go mod tidy
-          cat go.sum
-      - name: Normalize Go formatting
-        run: gofmt -w services internal
+          git diff --exit-code -- go.mod go.sum
+      # gofmt -w rewrote files inside the runner and threw the result away, so
+      # formatting drift never failed. Report and fail instead.
+      - name: Check Go formatting
+        run: |
+          unformatted=$(gofmt -l services internal)
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt-clean:"
+            echo "$unformatted"
+            gofmt -d services internal
+            exit 1
+          fi
+      - name: Vet
+        run: go vet ./...
       - name: Test
-        run: go test ./...
+        env:
+          DEVRELOS_TEST_DATABASE_URL: postgres://devrelos:devrelos@localhost:5432/devrelos_test?sslmode=disable
+        run: go test -race ./...
 
   web:
     runs-on: ubuntu-latest
@@ -37,8 +73,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      # npm ci installs exactly the committed lockfile. `npm install` resolved
+      # caret ranges afresh on every run, so the build was not reproducible.
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npx tsc --noEmit
       - name: Build
         env:
           NEXT_PUBLIC_API_URL: /api/devrelos
@@ -158,6 +202,33 @@ jobs:
           test "$revoked_status" = "204"
           post_revoke_status=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $session_token" http://127.0.0.1:8080/api/v1/dashboard)
           test "$post_revoke_status" = "401"
+
+          # Regression guard: withAuth hands the mux a r.WithContext() clone, so
+          # the ServeMux route pattern must be carried back out explicitly. When
+          # that breaks, every authenticated request collapses into the single
+          # pattern="/api/*" fallback and per-route metrics become useless.
+          metrics_body=$(curl -fsS -H "Authorization: Bearer $DEVRELOS_API_TOKEN" http://127.0.0.1:8080/metrics)
+          printf '%s' "$metrics_body" | grep -q 'devrelos_api_requests_total'
+          if ! printf '%s' "$metrics_body" | grep -q 'pattern="[^"]*/api/v1/dashboard"'; then
+            echo "route patterns collapsed to the /api/* fallback; matched labels:"
+            printf '%s' "$metrics_body" | grep 'devrelos_api_requests_total{'
+            exit 1
+          fi
+          if ! printf '%s' "$metrics_body" | grep -q 'pattern="[^"]*{id}[^"]*"'; then
+            echo "templated route patterns are missing; matched labels:"
+            printf '%s' "$metrics_body" | grep 'devrelos_api_requests_total{'
+            exit 1
+          fi
+      # Product-workflow smoke test, complementing the auth/session/secret
+      # assertions above. It walks docs/WORKFLOW.md section 3 end to end and
+      # guards regressions that unit tests structurally cannot catch: an
+      # always-empty Command Center high-fit panel, campaign reports that never
+      # populate their item list, and database errors surfacing as HTTP 500.
+      - name: Smoke test the documented DevRel workflow
+        env:
+          DEVRELOS_API_BASE: http://127.0.0.1:8080
+        run: sh scripts/workflow-smoke.sh
+
       - name: Runtime logs
         if: always()
         run: docker compose logs --no-color --tail=250 || true

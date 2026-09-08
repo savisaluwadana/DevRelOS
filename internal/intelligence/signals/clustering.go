@@ -35,7 +35,7 @@ type frictionRule struct {
 	Terms []string
 }
 
-var topicRules = []topicRule{
+var defaultTopicRules = []topicRule{
 	{Key: "platform-engineering", Label: "Platform engineering", Persona: "Platform engineer", Terms: []string{"platform engineering", "internal developer platform", "developer portal", "backstage", "idp"}},
 	{Key: "kubernetes", Label: "Kubernetes", Persona: "Platform engineer", Terms: []string{"kubernetes", "k8s", "helm", "pod", "cluster", "operator"}},
 	{Key: "observability", Label: "Observability", Persona: "SRE / platform engineer", Terms: []string{"observability", "opentelemetry", "otel", "tracing", "telemetry", "metrics", "logs"}},
@@ -48,7 +48,7 @@ var topicRules = []topicRule{
 	{Key: "cost", Label: "Cloud and tooling cost", Persona: "Engineering leader", Terms: []string{"cost", "expensive", "billing", "price", "pricing"}},
 }
 
-var frictionRules = []frictionRule{
+var defaultFrictionRules = []frictionRule{
 	{Key: "missing-capability", Label: "missing capability", Terms: []string{"doesn't support", "does not support", "can't", "cannot", "missing", "wish", "need a way", "no way to"}},
 	{Key: "reliability", Label: "reliability failures", Terms: []string{"broken", "breaks", "failing", "fails", "failure", "error", "crash", "unreliable"}},
 	{Key: "performance", Label: "performance friction", Terms: []string{"slow", "latency", "timeout", "takes forever", "performance"}},
@@ -73,6 +73,12 @@ type accumulator struct {
 // ClusterSignals groups signals with a deterministic, explainable heuristic. It intentionally
 // avoids embeddings/LLMs so the baseline product works offline and cluster rebuilds are reproducible.
 func ClusterSignals(items []domain.Signal, now time.Time) []Cluster {
+	return ClusterSignalsWith(DefaultRuleset(), items, now)
+}
+
+// ClusterSignalsWith clusters against an explicit ruleset, so a deployment can
+// supply its own topic and friction vocabulary. See RulesEnvVar.
+func ClusterSignalsWith(rules Ruleset, items []domain.Signal, now time.Time) []Cluster {
 	clusters := map[string]*accumulator{}
 
 	for _, item := range items {
@@ -81,8 +87,8 @@ func ClusterSignals(items []domain.Signal, now time.Time) []Cluster {
 		}
 
 		text := strings.ToLower(item.Title + " " + item.Body)
-		topic := detectTopic(item, text)
-		friction := detectFriction(text)
+		topic := detectTopic(rules, item, text)
+		friction := detectFriction(rules, text)
 		key := topic.Key + ":" + friction.Key
 
 		acc, ok := clusters[key]
@@ -94,7 +100,7 @@ func ClusterSignals(items []domain.Signal, now time.Time) []Cluster {
 		acc.signalIDs = append(acc.signalIDs, item.ID)
 		acc.topics[topic.Key] = struct{}{}
 		for _, candidate := range item.Topics {
-			candidate = canonicalTopic(candidate)
+			candidate = canonicalTopic(rules, candidate)
 			if candidate != "" {
 				acc.topics[candidate] = struct{}{}
 			}
@@ -173,14 +179,14 @@ func ClusterSignals(items []domain.Signal, now time.Time) []Cluster {
 	return out
 }
 
-func detectTopic(item domain.Signal, text string) topicRule {
+func detectTopic(rules Ruleset, item domain.Signal, text string) topicRule {
 	best := topicRule{Key: "general-developer-friction", Label: "Developer workflow", Persona: "Developer"}
 	bestScore := 0
 
-	for _, rule := range topicRules {
+	for _, rule := range rules.Topics {
 		score := 0
 		for _, topic := range item.Topics {
-			if canonicalTopic(topic) == rule.Key {
+			if canonicalTopic(rules, topic) == rule.Key {
 				score += 5
 			}
 		}
@@ -197,10 +203,10 @@ func detectTopic(item domain.Signal, text string) topicRule {
 	return best
 }
 
-func detectFriction(text string) frictionRule {
+func detectFriction(rules Ruleset, text string) frictionRule {
 	best := frictionRule{Key: "friction", Label: "recurring developer friction"}
 	bestScore := 0
-	for _, rule := range frictionRules {
+	for _, rule := range rules.Frictions {
 		score := 0
 		for _, term := range rule.Terms {
 			if strings.Contains(text, term) {
@@ -215,11 +221,11 @@ func detectFriction(text string) frictionRule {
 	return best
 }
 
-func canonicalTopic(value string) string {
+func canonicalTopic(rules Ruleset, value string) string {
 	value = strings.TrimSpace(strings.ToLower(value))
 	value = strings.ReplaceAll(value, "_", "-")
 	value = strings.ReplaceAll(value, " ", "-")
-	for _, rule := range topicRules {
+	for _, rule := range rules.Topics {
 		if value == rule.Key {
 			return rule.Key
 		}

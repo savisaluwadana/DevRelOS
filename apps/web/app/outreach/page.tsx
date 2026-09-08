@@ -2,6 +2,7 @@ import { CampaignAttribution } from "@/components/campaign-attribution";
 import { ContactForm, OutreachActions, OutreachDraftForm, RelationshipForm, TouchpointForm } from "@/components/outreach-actions";
 import { formatDateTime } from "@/lib/api";
 import { getOutreachData } from "@/lib/outreach-api";
+import { renderTimestamp } from "@/lib/clock";
 
 type OutreachPageProps = {
   searchParams: Promise<{ communityId?: string; talkId?: string; score?: string }>;
@@ -10,7 +11,7 @@ type OutreachPageProps = {
 export default async function OutreachPage({ searchParams }: OutreachPageProps) {
   const data = await getOutreachData();
   const params = await searchParams;
-  const now = Date.now();
+  const now = renderTimestamp();
   const followUpsDue = data.relationships.filter((item) => item.nextFollowUpAt && new Date(item.nextFollowUpAt).getTime() <= now).length;
   const approvalQueue = data.outreach.filter((item) => item.status === "needs_approval").length;
   const replies = data.outreach.filter((item) => item.status === "replied").length;

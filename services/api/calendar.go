@@ -45,14 +45,14 @@ func (a *api) listCalendar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items, err := a.store.ListCalendarItems(r.Context(), projectID, from, to)
+	items, err := a.store.ListCalendarItems(r.Context(), projectID, from, to, requestPage(r))
 	if err != nil {
 		writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"from": from,
-		"to":   to,
+		"from":  from,
+		"to":    to,
 		"items": items,
 	})
 }
