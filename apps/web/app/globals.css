@@ -142,3 +142,14 @@ td strong { color: #f3f5f8; display: block; font-weight: 650; }
   .metrics-grid { grid-template-columns: 1fr 1fr; }
   .community-grid { grid-template-columns: 1fr; }
 }
+
+.session-logout-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.session-logout-error {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--danger);
+}

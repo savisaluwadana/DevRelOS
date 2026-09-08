@@ -66,7 +66,7 @@ func FromWorkItem(item workdomain.WorkItem, channel, format, audience string) (c
 		WorkItemID: item.ID,
 		Channel:    channel,
 		Format:     format,
-		Title:      editorialTitle(item.Title, channel),
+		Title:      editorialTitle(item.Title),
 		Audience:   audience,
 		Objective:  objective,
 		Brief:      brief,
@@ -166,7 +166,7 @@ func structureFor(format string) string {
 	}
 }
 
-func editorialTitle(title, channel string) string {
+func editorialTitle(title string) string {
 	title = strings.TrimSpace(title)
 	prefixes := []string{"Content brief: ", "Docs improvement: ", "Product feedback: ", "Talk idea: ", "Community research: ", "Engineering task: "}
 	for _, prefix := range prefixes {
@@ -177,9 +177,6 @@ func editorialTitle(title, channel string) string {
 	}
 	if title == "" {
 		title = "Developer content asset"
-	}
-	if channel == "docs" {
-		return title
 	}
 	return title
 }
