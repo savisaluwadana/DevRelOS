@@ -39,8 +39,8 @@ type Metric struct {
 }
 
 type Report struct {
-	Campaign           Campaign          `json:"campaign"`
-	Items              []Item            `json:"items"`
+	Campaign           Campaign           `json:"campaign"`
+	Items              []Item             `json:"items"`
 	LinkedByType       map[string]int     `json:"linkedByType"`
 	SpendUSD           float64            `json:"spendUsd"`
 	BudgetRemainingUSD float64            `json:"budgetRemainingUsd"`

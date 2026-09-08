@@ -115,8 +115,12 @@ func (a *api) metricsHandler(w http.ResponseWriter, _ *http.Request) {
 	}
 	a.metrics.mu.Unlock()
 	sort.Slice(keys, func(i, j int) bool {
-		if keys[i].Pattern != keys[j].Pattern { return keys[i].Pattern < keys[j].Pattern }
-		if keys[i].Method != keys[j].Method { return keys[i].Method < keys[j].Method }
+		if keys[i].Pattern != keys[j].Pattern {
+			return keys[i].Pattern < keys[j].Pattern
+		}
+		if keys[i].Method != keys[j].Method {
+			return keys[i].Method < keys[j].Method
+		}
 		return keys[i].Status < keys[j].Status
 	})
 	fmt.Fprintln(w, "# HELP devrelos_api_requests_total Total API requests.")

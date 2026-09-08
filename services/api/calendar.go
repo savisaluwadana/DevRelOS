@@ -51,8 +51,8 @@ func (a *api) listCalendar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"from": from,
-		"to":   to,
+		"from":  from,
+		"to":    to,
 		"items": items,
 	})
 }

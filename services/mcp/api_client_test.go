@@ -48,8 +48,8 @@ func TestAPIClientCalendarUnwrapsItems(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"from": "2026-09-01T00:00:00Z",
-			"to":   "2026-10-01T00:00:00Z",
+			"from":  "2026-09-01T00:00:00Z",
+			"to":    "2026-10-01T00:00:00Z",
 			"items": []map[string]any{{"id": "cfp:1", "kind": "cfp"}},
 		})
 	}))

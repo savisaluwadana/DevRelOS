@@ -10,10 +10,18 @@ import (
 func TestRateLimiterWindow(t *testing.T) {
 	limiter := &rateLimiter{requests: map[string]rateWindow{}, limit: 2, window: time.Minute, enabled: true}
 	now := time.Unix(1000, 0).UTC()
-	if ok, _ := limiter.allow("client", now); !ok { t.Fatal("first request should pass") }
-	if ok, _ := limiter.allow("client", now.Add(time.Second)); !ok { t.Fatal("second request should pass") }
-	if ok, retry := limiter.allow("client", now.Add(2*time.Second)); ok || retry <= 0 { t.Fatal("third request should be limited with retry") }
-	if ok, _ := limiter.allow("client", now.Add(time.Minute)); !ok { t.Fatal("new window should pass") }
+	if ok, _ := limiter.allow("client", now); !ok {
+		t.Fatal("first request should pass")
+	}
+	if ok, _ := limiter.allow("client", now.Add(time.Second)); !ok {
+		t.Fatal("second request should pass")
+	}
+	if ok, retry := limiter.allow("client", now.Add(2*time.Second)); ok || retry <= 0 {
+		t.Fatal("third request should be limited with retry")
+	}
+	if ok, _ := limiter.allow("client", now.Add(time.Minute)); !ok {
+		t.Fatal("new window should pass")
+	}
 }
 
 func TestRateLimiterHealthExemption(t *testing.T) {
@@ -23,7 +31,9 @@ func TestRateLimiterHealthExemption(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
-		if rec.Code != http.StatusNoContent { t.Fatalf("health request %d got %d", i, rec.Code) }
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("health request %d got %d", i, rec.Code)
+		}
 	}
 }
 
@@ -37,6 +47,10 @@ func TestRateLimiterHashesBearerIdentity(t *testing.T) {
 	reqB.Header.Set("X-Forwarded-For", "203.0.113.10")
 	keyA := limiter.clientKey(reqA)
 	keyB := limiter.clientKey(reqB)
-	if keyA == keyB { t.Fatal("distinct bearer credentials must have distinct rate keys") }
-	if keyA == "auth:alpha" || keyB == "auth:beta" { t.Fatal("raw bearer credentials must not be retained in keys") }
+	if keyA == keyB {
+		t.Fatal("distinct bearer credentials must have distinct rate keys")
+	}
+	if keyA == "auth:alpha" || keyB == "auth:beta" {
+		t.Fatal("raw bearer credentials must not be retained in keys")
+	}
 }

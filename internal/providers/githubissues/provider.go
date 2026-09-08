@@ -64,18 +64,18 @@ func (p *Provider) Policy(config map[string]any) connectors.Policy {
 }
 
 type issue struct {
-	Number      int        `json:"number"`
-	Title       string     `json:"title"`
-	Body        string     `json:"body"`
-	HTMLURL     string     `json:"html_url"`
-	State       string     `json:"state"`
-	Comments    int        `json:"comments"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-	User        user       `json:"user"`
-	Labels      []label    `json:"labels"`
-	Reactions   reactions  `json:"reactions"`
-	PullRequest *struct{}  `json:"pull_request"`
+	Number      int       `json:"number"`
+	Title       string    `json:"title"`
+	Body        string    `json:"body"`
+	HTMLURL     string    `json:"html_url"`
+	State       string    `json:"state"`
+	Comments    int       `json:"comments"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	User        user      `json:"user"`
+	Labels      []label   `json:"labels"`
+	Reactions   reactions `json:"reactions"`
+	PullRequest *struct{} `json:"pull_request"`
 }
 
 type user struct {

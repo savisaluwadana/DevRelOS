@@ -9,14 +9,14 @@ import (
 )
 
 var allowedKinds = map[string]bool{
-	"content_brief":       true,
-	"docs_improvement":    true,
-	"product_feedback":    true,
-	"talk_idea":           true,
-	"community_research":  true,
-	"outreach_follow_up":  true,
-	"event_task":          true,
-	"engineering_task":    true,
+	"content_brief":      true,
+	"docs_improvement":   true,
+	"product_feedback":   true,
+	"talk_idea":          true,
+	"community_research": true,
+	"outreach_follow_up": true,
+	"event_task":         true,
+	"engineering_task":   true,
 }
 
 func ValidKind(kind string) bool {
@@ -68,13 +68,13 @@ func FromPainPoint(p signaldomain.PainPoint, kind, owner string) (workdomain.Wor
 		Status:      "backlog",
 		Owner:       owner,
 		Metadata: map[string]any{
-			"pain_point_key":    p.Key,
-			"pain_point_title":  p.Title,
-			"persona":           p.Persona,
-			"severity":          p.Severity,
-			"trend_score":       p.TrendScore,
-			"evidence_count":    p.EvidenceCount,
-			"topics":            p.Topics,
+			"pain_point_key":   p.Key,
+			"pain_point_title": p.Title,
+			"persona":          p.Persona,
+			"severity":         p.Severity,
+			"trend_score":      p.TrendScore,
+			"evidence_count":   p.EvidenceCount,
+			"topics":           p.Topics,
 		},
 	}, nil
 }

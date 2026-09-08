@@ -56,8 +56,14 @@ func (a *api) createConnector(w http.ResponseWriter, r *http.Request) {
 	}
 	if input.SecretID != "" {
 		belongs, belongsErr := a.store.ConnectorSecretBelongs(r.Context(), workspaceID, input.SecretID, input.Provider)
-		if belongsErr != nil { writeError(w, belongsErr); return }
-		if !belongs { writeBadRequest(w, "secret does not belong to this workspace/provider"); return }
+		if belongsErr != nil {
+			writeError(w, belongsErr)
+			return
+		}
+		if !belongs {
+			writeBadRequest(w, "secret does not belong to this workspace/provider")
+			return
+		}
 	}
 	input.WorkspaceID = workspaceID
 	created, err := a.store.CreateConnector(r.Context(), input)

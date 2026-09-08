@@ -13,13 +13,13 @@ func TestClusterSignalsGroupsRelatedFriction(t *testing.T) {
 	items := []domain.Signal{
 		{
 			ID: "a", Provider: "reddit", Title: "Kubernetes setup is too complex",
-			Body: "Our platform team finds cluster setup confusing and manual.",
+			Body:   "Our platform team finds cluster setup confusing and manual.",
 			Topics: []string{"kubernetes"}, RelevanceScore: &relevance, EngagementScore: 60,
 			OccurredAt: ptrTime(now.Add(-24 * time.Hour)), Status: "new",
 		},
 		{
 			ID: "b", Provider: "github", Title: "K8s configuration is hard",
-			Body: "Deploying and configuring the cluster takes too many steps.",
+			Body:   "Deploying and configuring the cluster takes too many steps.",
 			Topics: []string{"kubernetes"}, RelevanceScore: &relevance, EngagementScore: 40,
 			OccurredAt: ptrTime(now.Add(-48 * time.Hour)), Status: "reviewed",
 		},

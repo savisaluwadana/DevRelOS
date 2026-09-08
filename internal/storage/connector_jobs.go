@@ -6,8 +6,8 @@ import (
 	"errors"
 	"time"
 
-	domain "github.com/savisaluwadana/DevRelOS/internal/domain/connectors"
 	"github.com/jackc/pgx/v5"
+	domain "github.com/savisaluwadana/DevRelOS/internal/domain/connectors"
 )
 
 type ClaimedConnectorRun struct {

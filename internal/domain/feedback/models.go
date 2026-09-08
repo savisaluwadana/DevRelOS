@@ -17,9 +17,9 @@ type Item struct {
 	Owner             string         `json:"owner"`
 	GitHubRepository  string         `json:"githubRepository"`
 	GitHubIssueNumber *int           `json:"githubIssueNumber,omitempty"`
-	GitHubIssueURL     string         `json:"githubIssueUrl"`
-	GitHubIssueTitle   string         `json:"githubIssueTitle"`
-	GitHubIssueBody    string         `json:"githubIssueBody"`
+	GitHubIssueURL    string         `json:"githubIssueUrl"`
+	GitHubIssueTitle  string         `json:"githubIssueTitle"`
+	GitHubIssueBody   string         `json:"githubIssueBody"`
 	FollowUpNote      string         `json:"followUpNote"`
 	ShippedAt         *time.Time     `json:"shippedAt,omitempty"`
 	Metadata          map[string]any `json:"metadata"`
@@ -44,8 +44,8 @@ type Update struct {
 	Owner             *string `json:"owner,omitempty"`
 	GitHubRepository  *string `json:"githubRepository,omitempty"`
 	GitHubIssueNumber *int    `json:"githubIssueNumber,omitempty"`
-	GitHubIssueURL     *string `json:"githubIssueUrl,omitempty"`
-	GitHubIssueTitle   *string `json:"githubIssueTitle,omitempty"`
-	GitHubIssueBody    *string `json:"githubIssueBody,omitempty"`
+	GitHubIssueURL    *string `json:"githubIssueUrl,omitempty"`
+	GitHubIssueTitle  *string `json:"githubIssueTitle,omitempty"`
+	GitHubIssueBody   *string `json:"githubIssueBody,omitempty"`
 	FollowUpNote      *string `json:"followUpNote,omitempty"`
 }

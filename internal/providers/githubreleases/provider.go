@@ -173,11 +173,11 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 			CanonicalURL:    item.HTMLURL,
 			SourceTimestamp: &timestamp,
 			Payload: map[string]any{
-				"repository": repository,
-				"release_id": item.ID,
-				"tag_name": item.TagName,
-				"draft": item.Draft,
-				"prerelease": item.Prerelease,
+				"repository":      repository,
+				"release_id":      item.ID,
+				"tag_name":        item.TagName,
+				"draft":           item.Draft,
+				"prerelease":      item.Prerelease,
 				"asset_downloads": engagement,
 			},
 			Normalized: connectors.NormalizedRecord{

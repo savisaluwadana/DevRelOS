@@ -160,7 +160,7 @@ func (a *api) rebuildPainPoints(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"signalsConsidered": len(items),
-		"clustersCreated":  len(clusters),
+		"clustersCreated":   len(clusters),
 	})
 }
 

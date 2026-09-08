@@ -142,11 +142,11 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 			CanonicalURL:    fmt.Sprintf("https://news.ycombinator.com/item?id=%d", story.ID),
 			SourceTimestamp: &timestamp,
 			Payload: map[string]any{
-				"id": story.ID,
-				"score": story.Score,
-				"descendants": story.Descendants,
+				"id":           story.ID,
+				"score":        story.Score,
+				"descendants":  story.Descendants,
 				"external_url": story.URL,
-				"feed": feed,
+				"feed":         feed,
 			},
 			Normalized: connectors.NormalizedRecord{
 				Kind:            "signal",

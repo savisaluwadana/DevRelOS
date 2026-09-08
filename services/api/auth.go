@@ -61,9 +61,14 @@ func (a *api) withAuth(next http.Handler) http.Handler {
 			hash := sha256.Sum256([]byte(token))
 			principal, err := a.store.ResolveSession(r.Context(), hex.EncodeToString(hash[:]))
 			if err == nil && principal.Status == "active" {
-				if !a.sessionRequestWithinWorkspace(w, r, principal.WorkspaceID) { return }
+				if !a.sessionRequestWithinWorkspace(w, r, principal.WorkspaceID) {
+					return
+				}
 				role, roleErr := a.store.RoleForWorkspace(r.Context(), principal.UserID, principal.WorkspaceID)
-				if roleErr != nil || roleRank(role) == 0 { writeForbidden(w); return }
+				if roleErr != nil || roleRank(role) == 0 {
+					writeForbidden(w)
+					return
+				}
 				if requiresEditor(r) && roleRank(role) < roleRank("editor") {
 					writeJSON(w, http.StatusForbidden, map[string]string{"error": "editor role required"})
 					return
@@ -82,9 +87,15 @@ func (a *api) withAuth(next http.Handler) http.Handler {
 			principal, err := a.store.ResolveAPIKey(r.Context(), hex.EncodeToString(hash[:]))
 			if err == nil && principal.Status == "active" {
 				workspaceID, scopeErr := a.apiKeyWorkspace(r, principal.UserID)
-				if scopeErr != nil { writeForbidden(w); return }
+				if scopeErr != nil {
+					writeForbidden(w)
+					return
+				}
 				role, roleErr := a.store.RoleForWorkspace(r.Context(), principal.UserID, workspaceID)
-				if roleErr != nil || roleRank(role) == 0 { writeForbidden(w); return }
+				if roleErr != nil || roleRank(role) == 0 {
+					writeForbidden(w)
+					return
+				}
 				if requiresEditor(r) && roleRank(role) < roleRank("editor") {
 					writeJSON(w, http.StatusForbidden, map[string]string{"error": "editor role required"})
 					return
@@ -103,11 +114,19 @@ func (a *api) withAuth(next http.Handler) http.Handler {
 }
 
 func (a *api) apiKeyWorkspace(r *http.Request, userID string) (string, error) {
-	if workspaceID := strings.TrimSpace(r.URL.Query().Get("workspaceId")); workspaceID != "" { return workspaceID, nil }
-	if projectID := strings.TrimSpace(r.URL.Query().Get("projectId")); projectID != "" { return a.store.ProjectWorkspaceID(r.Context(), projectID) }
+	if workspaceID := strings.TrimSpace(r.URL.Query().Get("workspaceId")); workspaceID != "" {
+		return workspaceID, nil
+	}
+	if projectID := strings.TrimSpace(r.URL.Query().Get("projectId")); projectID != "" {
+		return a.store.ProjectWorkspaceID(r.Context(), projectID)
+	}
 	items, err := a.store.ListUserWorkspaces(r.Context(), userID)
-	if err != nil { return "", err }
-	if len(items) == 0 { return "", os.ErrNotExist }
+	if err != nil {
+		return "", err
+	}
+	if len(items) == 0 {
+		return "", os.ErrNotExist
+	}
 	return items[0].WorkspaceID, nil
 }
 
@@ -116,8 +135,12 @@ func isMutation(method string) bool {
 }
 
 func requiresEditor(r *http.Request) bool {
-	if !isMutation(r.Method) { return false }
-	if strings.HasPrefix(r.URL.Path, "/api/v1/identity/") { return false }
+	if !isMutation(r.Method) {
+		return false
+	}
+	if strings.HasPrefix(r.URL.Path, "/api/v1/identity/") {
+		return false
+	}
 	return true
 }
 
@@ -142,10 +165,18 @@ func (a *api) sessionRequestWithinWorkspace(w http.ResponseWriter, r *http.Reque
 
 func (a *api) requestWorkspaceID(r *http.Request) (string, error) {
 	act := currentActor(r)
-	if act.SessionID != "" && act.WorkspaceID != "" { return act.WorkspaceID, nil }
-	if workspaceID := strings.TrimSpace(r.URL.Query().Get("workspaceId")); workspaceID != "" { return workspaceID, nil }
-	if projectID := strings.TrimSpace(r.URL.Query().Get("projectId")); projectID != "" { return a.store.ProjectWorkspaceID(r.Context(), projectID) }
-	if act.WorkspaceID != "" { return act.WorkspaceID, nil }
+	if act.SessionID != "" && act.WorkspaceID != "" {
+		return act.WorkspaceID, nil
+	}
+	if workspaceID := strings.TrimSpace(r.URL.Query().Get("workspaceId")); workspaceID != "" {
+		return workspaceID, nil
+	}
+	if projectID := strings.TrimSpace(r.URL.Query().Get("projectId")); projectID != "" {
+		return a.store.ProjectWorkspaceID(r.Context(), projectID)
+	}
+	if act.WorkspaceID != "" {
+		return act.WorkspaceID, nil
+	}
 	return a.store.DefaultWorkspaceID(r.Context())
 }
 
@@ -163,7 +194,9 @@ func roleRank(role string) int {
 }
 
 func secureEqual(a, b string) bool {
-	if len(a) != len(b) { return false }
+	if len(a) != len(b) {
+		return false
+	}
 	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 

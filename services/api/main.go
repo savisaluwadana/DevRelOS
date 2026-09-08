@@ -115,119 +115,232 @@ func (a *api) projectID(r *http.Request) (string, error) {
 
 func (a *api) dashboard(w http.ResponseWriter, r *http.Request) {
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	d, err := a.store.Dashboard(r.Context(), projectID)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, d)
 }
 
 func (a *api) listEvents(w http.ResponseWriter, r *http.Request) {
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	items, err := a.store.ListEvents(r.Context(), projectID)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, items)
 }
 
 func (a *api) createEvent(w http.ResponseWriter, r *http.Request) {
 	var input events.Event
-	if err := decodeJSON(r, &input); err != nil { writeBadRequest(w, err.Error()); return }
-	if strings.TrimSpace(input.Name) == "" { writeBadRequest(w, "name is required"); return }
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if strings.TrimSpace(input.Name) == "" {
+		writeBadRequest(w, "name is required")
+		return
+	}
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	input.ProjectID = projectID
 	created, err := a.store.CreateEvent(r.Context(), input)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusCreated, created)
 }
 
 func (a *api) listCFPs(w http.ResponseWriter, r *http.Request) {
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	items, err := a.store.ListCFPs(r.Context(), projectID)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, items)
 }
 
 func (a *api) createCFP(w http.ResponseWriter, r *http.Request) {
 	var input events.CFP
-	if err := decodeJSON(r, &input); err != nil { writeBadRequest(w, err.Error()); return }
-	if input.EventID == "" { writeBadRequest(w, "eventId is required"); return }
-	if input.FitScore != nil && (*input.FitScore < 0 || *input.FitScore > 100) { writeBadRequest(w, "fitScore must be between 0 and 100"); return }
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if input.EventID == "" {
+		writeBadRequest(w, "eventId is required")
+		return
+	}
+	if input.FitScore != nil && (*input.FitScore < 0 || *input.FitScore > 100) {
+		writeBadRequest(w, "fitScore must be between 0 and 100")
+		return
+	}
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	created, err := a.store.CreateScopedCFP(r.Context(), projectID, input)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusCreated, created)
 }
 
 func (a *api) listTalks(w http.ResponseWriter, r *http.Request) {
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	items, err := a.store.ListTalks(r.Context(), projectID)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, items)
 }
 
 func (a *api) createTalk(w http.ResponseWriter, r *http.Request) {
 	var input events.Talk
-	if err := decodeJSON(r, &input); err != nil { writeBadRequest(w, err.Error()); return }
-	if strings.TrimSpace(input.Title) == "" { writeBadRequest(w, "title is required"); return }
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if strings.TrimSpace(input.Title) == "" {
+		writeBadRequest(w, "title is required")
+		return
+	}
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	input.ProjectID = projectID
 	created, err := a.store.CreateTalk(r.Context(), input)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusCreated, created)
 }
 
 func (a *api) listSubmissions(w http.ResponseWriter, r *http.Request) {
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	items, err := a.store.ListSubmissions(r.Context(), projectID)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, items)
 }
 
 func (a *api) createSubmission(w http.ResponseWriter, r *http.Request) {
 	var input events.Submission
-	if err := decodeJSON(r, &input); err != nil { writeBadRequest(w, err.Error()); return }
-	if input.CFPID == "" || input.TalkID == "" { writeBadRequest(w, "cfpId and talkId are required"); return }
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if input.CFPID == "" || input.TalkID == "" {
+		writeBadRequest(w, "cfpId and talkId are required")
+		return
+	}
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	created, err := a.store.CreateScopedSubmission(r.Context(), projectID, input)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusCreated, created)
 }
 
 func (a *api) updateSubmissionStatus(w http.ResponseWriter, r *http.Request) {
-	var input struct { Status string `json:"status"` }
-	if err := decodeJSON(r, &input); err != nil { writeBadRequest(w, err.Error()); return }
+	var input struct {
+		Status string `json:"status"`
+	}
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
 	allowed := map[string]bool{"draft": true, "needs_work": true, "ready": true, "submitted": true, "accepted": true, "rejected": true, "withdrawn": true}
-	if !allowed[input.Status] { writeBadRequest(w, "invalid submission status"); return }
+	if !allowed[input.Status] {
+		writeBadRequest(w, "invalid submission status")
+		return
+	}
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
-	if err := a.store.UpdateScopedSubmissionStatus(r.Context(), projectID, r.PathValue("id"), input.Status); err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.UpdateScopedSubmissionStatus(r.Context(), projectID, r.PathValue("id"), input.Status); err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": input.Status})
 }
 
 func (a *api) listCommunities(w http.ResponseWriter, r *http.Request) {
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	items, err := a.store.ListCommunities(r.Context(), projectID)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, items)
 }
 
 func (a *api) createCommunity(w http.ResponseWriter, r *http.Request) {
 	var input events.Community
-	if err := decodeJSON(r, &input); err != nil { writeBadRequest(w, err.Error()); return }
-	if strings.TrimSpace(input.Name) == "" { writeBadRequest(w, "name is required"); return }
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if strings.TrimSpace(input.Name) == "" {
+		writeBadRequest(w, "name is required")
+		return
+	}
 	projectID, err := a.projectID(r)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	input.ProjectID = projectID
 	created, err := a.store.CreateCommunity(r.Context(), input)
-	if err != nil { writeError(w, err); return }
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusCreated, created)
 }
 
@@ -276,6 +389,8 @@ func withMiddleware(next http.Handler) http.Handler {
 }
 
 func envOr(key, fallback string) string {
-	if value := os.Getenv(key); value != "" { return value }
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
 	return fallback
 }
