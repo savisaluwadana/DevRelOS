@@ -123,7 +123,11 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 	if err := p.ValidateConfig(config); err != nil {
 		return connectors.FetchResult{}, err
 	}
-	repository := strings.Trim(strings.TrimSpace(config["repository"].(string)), "/")
+	// Read defensively rather than asserting: a bare assertion panics on a
+	// non-string config value and only survives today because ValidateConfig
+	// happens to run first.
+	rawRepository, _ := config["repository"].(string)
+	repository := strings.Trim(strings.TrimSpace(rawRepository), "/")
 	parts := strings.Split(repository, "/")
 	limit := request.PageLimit
 	if limit <= 0 {
@@ -219,6 +223,7 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 			},
 			Normalized: connectors.NormalizedRecord{
 				Kind:            "signal",
+				Shape:           connectors.SourceShapeReport,
 				Title:           item.Title,
 				Body:            item.BodyText,
 				AuthorHandle:    author,

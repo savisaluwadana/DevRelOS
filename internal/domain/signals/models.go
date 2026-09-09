@@ -18,8 +18,11 @@ type Signal struct {
 	EngagementScore int        `json:"engagementScore"`
 	RelevanceScore  *int       `json:"relevanceScore,omitempty"`
 	Status          string     `json:"status"`
-	CreatedAt       time.Time  `json:"createdAt"`
-	UpdatedAt       time.Time  `json:"updatedAt"`
+	// SourceShape is whether the author was reporting a problem or announcing
+	// something. Only reports become pain-point evidence.
+	SourceShape string    `json:"sourceShape"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 type PainPoint struct {

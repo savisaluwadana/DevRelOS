@@ -16,6 +16,7 @@ import "./media.css";
 import "./access.css";
 import "./campaigns.css";
 import "./calendar.css";
+import "./guide.css";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -39,7 +40,8 @@ const nav = [
   { label: "Outreach", href: "/outreach" },
   { label: "Feedback", href: "/feedback" },
   { label: "Integrations", href: "/integrations" },
-  { label: "Access & Security", href: "/access", adminOnly: true }
+  { label: "Access & Security", href: "/access", adminOnly: true },
+  { label: "Guide", href: "/guide" }
 ];
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

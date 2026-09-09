@@ -136,6 +136,15 @@ func scoreCFPPair(cfp events.CFP, event events.Event, talk events.Talk, existing
 		}
 	}
 
+	// The components sum to 100: TopicFit 55, Readiness 15, Deadline 10,
+	// ExistingFit 15, SubmissionGap 5.
+	//
+	// ExistingFit is derived from cfps.fit_score, which nothing in the platform
+	// computes - it is only persisted when a client supplies a value on create.
+	// So for any CFP entered normally those 15 points are unreachable and the
+	// practical ceiling is 85, which makes a nominal "70 out of 100" threshold
+	// an 82% bar in practice. Treat fit_score as an optional manual prior, and
+	// re-weight deliberately rather than by accident if that is not intended.
 	score := breakdown.TopicFit + breakdown.Readiness + breakdown.Deadline + breakdown.ExistingFit + breakdown.SubmissionGap - breakdown.Penalty
 	score = clamp(score, 0, 100)
 	return CFPOpportunity{CFP: cfp, Event: event, Talk: talk, Score: score, Breakdown: breakdown, Reasons: reasons, ExistingSubmission: existing}

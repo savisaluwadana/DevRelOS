@@ -66,7 +66,8 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 	if err := p.ValidateConfig(config); err != nil {
 		return connectors.FetchResult{}, err
 	}
-	feedURL := strings.TrimSpace(config["feed_url"].(string))
+	rawFeedURL, _ := config["feed_url"].(string)
+	feedURL := strings.TrimSpace(rawFeedURL)
 	limit := request.PageLimit
 	if limit <= 0 {
 		limit = 50
@@ -139,6 +140,7 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 			},
 			Normalized: connectors.NormalizedRecord{
 				Kind:         "signal",
+				Shape:        connectors.SourceShapeAnnouncement,
 				Title:        cleanText(entry.Title),
 				Body:         cleanText(entry.Body),
 				AuthorName:   cleanText(entry.Author),

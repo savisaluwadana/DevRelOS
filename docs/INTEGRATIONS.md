@@ -294,6 +294,44 @@ for platform engineering, Kubernetes, CI/CD, observability and developer
 experience. Signals from another domain will cluster into the generic
 `general-developer-friction` bucket until the vocabulary is replaced.
 
+### Which sources can produce pain points
+
+Not every source can. Providers declare the *shape* of what they emit:
+
+| Shape | Providers | Feeds pain points? |
+| --- | --- | --- |
+| `report` — the author has a problem | GitHub Issues, GitHub Discussions, Hacker News, Bluesky | yes |
+| `announcement` — the author is publishing news | RSS/Atom feeds, GitHub Releases | no |
+| `unknown` — unclassified, including manual entry | manual signals, rows predating this column | yes |
+
+Announcement sources stay fully useful in Signal Radar and for content
+research. They are excluded from pain-point evidence because friction
+vocabulary is ordinary technical prose in a blog post: "setup", "configure",
+"complex", "manual" and "hard" appear constantly in writing that *describes*
+rather than complains, and keyword matching cannot tell "how to configure X"
+from "configuring X is painful".
+
+This is not a tuning problem. On a real dataset of 191 signals drawn from the
+Kubernetes blog, the CNCF blog, GitHub releases and Hacker News, the clusterer
+reported 18 pain points at severity up to 100 — including one backed by 73
+Kubernetes version tags and another backed by 47 unrelated news headlines. With
+source shapes applied, the same dataset yields the one pain point that the
+data actually supports.
+
+**If pain-point discovery matters to you, point connectors at complaint-shaped
+sources**: GitHub Issues and Discussions on your own repositories, plus
+whatever forum your developers actually complain in. Blog and release feeds are
+for the content radar.
+
+Two further guards apply:
+
+- A signal must express **some** friction term to be evidence at all. Content
+  matching none of the friction vocabulary produces no pain point rather than
+  falling into a catch-all bucket.
+- A cluster needs at least `minEvidence` signals (default **2**) before it is
+  reported, because these are presented as *recurring* pain points. Single
+  friction signals remain visible in Signal Radar.
+
 Point `DEVRELOS_CLUSTERING_RULES` at a JSON file to override it:
 
 ```json
@@ -314,7 +352,8 @@ Point `DEVRELOS_CLUSTERING_RULES` at a JSON file to override it:
   ],
   "frictions": [
     { "key": "calibration", "label": "calibration drift", "terms": ["calibration", "drifts", "recalibrate"] }
-  ]
+  ],
+  "minEvidence": 2
 }
 ```
 
@@ -326,7 +365,13 @@ Rules:
 - `key` is required and must be unique; `label` defaults to `key`; `persona` is
   optional and surfaces on the cluster.
 - `terms` is required and non-empty. Terms are lowercased and trimmed on load
-  and matched as substrings against the signal title and body.
+  and matched as **whole words** against the signal title and body, allowing
+  common inflections: `cost` matches "costs", `configure` matches "configured"
+  and "configuring", but neither matches "Costa Rica" or "Hardware".
+  Multi-word terms such as `platform engineering` match as phrases.
+- `minEvidence` sets how many signals a cluster needs before it is reported.
+  It defaults to 2 and must be at least 1. Setting it to 1 surfaces every
+  friction signal as its own pain point.
 - Unknown fields are rejected, so a typo fails loudly instead of being ignored.
 - **A missing or malformed file is a startup failure, not a fallback.** Silently
   reverting to the built-ins would leave you believing your vocabulary was in

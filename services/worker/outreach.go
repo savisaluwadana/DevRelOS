@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"mime"
 	"net"
 	"net/smtp"
@@ -147,11 +148,20 @@ func sendSMTP(ctx context.Context, cfg smtpConfig, item outreachdomain.Delivery)
 		_ = writer.Close()
 		return "", err
 	}
+	// Closing the data writer is the point of no return: it reads the server's
+	// response to the end-of-DATA marker, so once it succeeds the server has
+	// accepted the message and it is on its way.
 	if err := writer.Close(); err != nil {
 		return "", err
 	}
+
+	// QUIT is only a polite teardown. Returning its error used to report the
+	// delivery as failed, which scheduled a retry and sent the same
+	// human-approved email to the organiser a second time. A network blip or a
+	// server that drops the connection after accepting DATA does not un-send
+	// the mail, so log and report success.
 	if err := client.Quit(); err != nil {
-		return "", err
+		log.Printf("outreach delivery accepted but SMTP QUIT failed id=%s: %v", item.ID, err)
 	}
 	return messageID, nil
 }

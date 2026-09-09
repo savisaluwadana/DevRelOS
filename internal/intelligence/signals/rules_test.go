@@ -47,14 +47,16 @@ func TestParseRulesetOverridesOnlyTheSectionsPresent(t *testing.T) {
 
 func TestParseRulesetRejectsBadInput(t *testing.T) {
 	cases := map[string]string{
-		"malformed json":     `{"topics":`,
-		"unknown field":      `{"topics": [{"key":"a","terms":["x"],"colour":"red"}]}`,
-		"topic with no key":  `{"topics": [{"label":"No key","terms":["x"]}]}`,
-		"topic with no term": `{"topics": [{"key":"a","terms":["  "]}]}`,
-		"duplicate topic":    `{"topics": [{"key":"a","terms":["x"]},{"key":"a","terms":["y"]}]}`,
-		"friction no key":    `{"frictions": [{"label":"x","terms":["y"]}]}`,
-		"friction no term":   `{"frictions": [{"key":"a","terms":[]}]}`,
-		"duplicate friction": `{"frictions": [{"key":"a","terms":["x"]},{"key":"a","terms":["y"]}]}`,
+		"malformed json":       `{"topics":`,
+		"unknown field":        `{"topics": [{"key":"a","terms":["x"],"colour":"red"}]}`,
+		"topic with no key":    `{"topics": [{"label":"No key","terms":["x"]}]}`,
+		"topic with no term":   `{"topics": [{"key":"a","terms":["  "]}]}`,
+		"duplicate topic":      `{"topics": [{"key":"a","terms":["x"]},{"key":"a","terms":["y"]}]}`,
+		"friction no key":      `{"frictions": [{"label":"x","terms":["y"]}]}`,
+		"friction no term":     `{"frictions": [{"key":"a","terms":[]}]}`,
+		"duplicate friction":   `{"frictions": [{"key":"a","terms":["x"]},{"key":"a","terms":["y"]}]}`,
+		"zero minEvidence":     `{"minEvidence": 0}`,
+		"negative minEvidence": `{"minEvidence": -1}`,
 	}
 	for name, raw := range cases {
 		if _, err := ParseRuleset([]byte(raw)); err == nil {
@@ -115,8 +117,10 @@ func TestLoadRulesetFromEnv(t *testing.T) {
 
 func TestClusterSignalsWithCustomRulesetChangesOutcome(t *testing.T) {
 	now := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
+	// Both signals must express the SAME friction mode, or they form two
+	// single-signal clusters and neither meets the recurring threshold.
 	items := []domain.Signal{
-		{ID: "1", Title: "ROS2 node discovery keeps failing", Body: "our ros2 fleet cannot see each other", CreatedAt: now},
+		{ID: "1", Title: "ROS2 node discovery keeps failing", Body: "our ros2 fleet is broken after every upgrade", CreatedAt: now},
 		{ID: "2", Title: "ros2 launch files are broken", Body: "ros2 launch fails after upgrade", CreatedAt: now},
 	}
 
@@ -143,5 +147,28 @@ func TestClusterSignalsWithCustomRulesetChangesOutcome(t *testing.T) {
 	}
 	if clustered[0].Persona != "Robotics engineer" {
 		t.Fatalf("Persona = %q, want the configured persona", clustered[0].Persona)
+	}
+}
+
+func TestParseRulesetReadsMinEvidence(t *testing.T) {
+	// Absent means the default, so an existing rules file keeps working.
+	parsed, err := ParseRuleset([]byte(`{"topics":[{"key":"robotics","terms":["ros2"]}]}`))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if parsed.MinEvidence != DefaultMinEvidence {
+		t.Fatalf("MinEvidence = %d, want the default %d", parsed.MinEvidence, DefaultMinEvidence)
+	}
+
+	parsed, err = ParseRuleset([]byte(`{"minEvidence": 5}`))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if parsed.MinEvidence != 5 {
+		t.Fatalf("MinEvidence = %d, want 5", parsed.MinEvidence)
+	}
+	// Overriding only the threshold must keep the built-in vocabularies.
+	if len(parsed.Topics) != len(DefaultRuleset().Topics) {
+		t.Fatal("setting minEvidence alone replaced the built-in topics")
 	}
 }

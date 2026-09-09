@@ -2,6 +2,9 @@
 
 How the platform is meant to be used, and how work flows between its surfaces.
 
+> Both of these are also readable inside the console itself, under **Guide** in
+> the sidebar, so you do not have to leave the product to look something up.
+
 This is the **task-oriented** companion to the [Operator Guide](OPERATOR_GUIDE.md).
 The Operator Guide is a reference: it documents every workspace, field and setting
 one at a time. This guide answers the questions a reference cannot:
@@ -240,6 +243,14 @@ developers.events.
 
 Credentials belong in **Access & Security** as encrypted workspace secrets, not
 in environment variables. Run history and failures are visible per connector.
+
+**Only complaint-shaped sources feed pain points.** RSS and release feeds are
+announcement sources: they populate Signal Radar and the content radar, but are
+excluded from pain-point evidence, because friction words like "setup" and
+"configure" are ordinary prose in a blog post. Point connectors at GitHub
+Issues, GitHub Discussions or your developers' forum if pain-point discovery is
+what you want from this loop. See
+[INTEGRATIONS.md](INTEGRATIONS.md) for the full table.
 
 Signal clustering is a **deterministic keyword heuristic**, not an LLM — cluster
 rebuilds are reproducible and the whole product works offline. The trade-off is
