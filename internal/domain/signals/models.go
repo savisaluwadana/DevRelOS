@@ -22,6 +22,20 @@ type Signal struct {
 	UpdatedAt       time.Time  `json:"updatedAt"`
 }
 
+// SignalUpdate carries partial edits to a Signal; nil fields are left unchanged.
+// Title/Body are editable even though signals are usually provider-sourced:
+// operators frequently need to clean up truncated or mis-scraped evidence
+// text, and the alternative (no edit at all) would force a delete+recreate
+// that loses the original id and any pain-point evidence links.
+type SignalUpdate struct {
+	Title           *string   `json:"title,omitempty"`
+	Body            *string   `json:"body,omitempty"`
+	Topics          *[]string `json:"topics,omitempty"`
+	EngagementScore *int      `json:"engagementScore,omitempty"`
+	RelevanceScore  *int      `json:"relevanceScore,omitempty"`
+	Status          *string   `json:"status,omitempty"`
+}
+
 type PainPoint struct {
 	ID            string     `json:"id"`
 	ProjectID     string     `json:"projectId"`
@@ -38,4 +52,13 @@ type PainPoint struct {
 	LastSeenAt    *time.Time `json:"lastSeenAt,omitempty"`
 	CreatedAt     time.Time  `json:"createdAt"`
 	UpdatedAt     time.Time  `json:"updatedAt"`
+}
+
+// PainPointUpdate carries partial edits to a PainPoint; nil fields are left unchanged.
+type PainPointUpdate struct {
+	Title   *string `json:"title,omitempty"`
+	Summary *string `json:"summary,omitempty"`
+	Persona *string `json:"persona,omitempty"`
+	Severity *int   `json:"severity,omitempty"`
+	Status  *string `json:"status,omitempty"`
 }

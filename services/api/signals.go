@@ -14,8 +14,11 @@ import (
 func (a *api) registerSignalRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/signals", a.listSignals)
 	mux.HandleFunc("POST /api/v1/signals", a.createSignal)
-	mux.HandleFunc("PATCH /api/v1/signals/{id}/status", a.updateSignalStatus)
+	mux.HandleFunc("PATCH /api/v1/signals/{id}", a.updateSignal)
+	mux.HandleFunc("DELETE /api/v1/signals/{id}", a.deleteSignal)
 	mux.HandleFunc("GET /api/v1/pain-points", a.listPainPoints)
+	mux.HandleFunc("PATCH /api/v1/pain-points/{id}", a.updatePainPoint)
+	mux.HandleFunc("DELETE /api/v1/pain-points/{id}", a.deletePainPoint)
 	mux.HandleFunc("GET /api/v1/pain-points/{id}/evidence", a.listPainPointEvidence)
 	mux.HandleFunc("POST /api/v1/pain-points/rebuild", a.rebuildPainPoints)
 	a.registerFeedbackRoutes(mux)
@@ -80,17 +83,24 @@ func (a *api) createSignal(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, created)
 }
 
-func (a *api) updateSignalStatus(w http.ResponseWriter, r *http.Request) {
-	var input struct {
-		Status string `json:"status"`
-	}
+var validSignalStatuses = map[string]bool{"new": true, "reviewed": true, "ignored": true, "converted": true}
+
+func (a *api) updateSignal(w http.ResponseWriter, r *http.Request) {
+	var input domain.SignalUpdate
 	if err := decodeJSON(r, &input); err != nil {
 		writeBadRequest(w, err.Error())
 		return
 	}
-	allowed := map[string]bool{"new": true, "reviewed": true, "ignored": true, "converted": true}
-	if !allowed[input.Status] {
+	if input.Status != nil && !validSignalStatuses[*input.Status] {
 		writeBadRequest(w, "invalid signal status")
+		return
+	}
+	if input.RelevanceScore != nil && (*input.RelevanceScore < 0 || *input.RelevanceScore > 100) {
+		writeBadRequest(w, "relevanceScore must be between 0 and 100")
+		return
+	}
+	if input.EngagementScore != nil && *input.EngagementScore < 0 {
+		writeBadRequest(w, "engagementScore cannot be negative")
 		return
 	}
 	projectID, err := a.projectID(r)
@@ -98,11 +108,67 @@ func (a *api) updateSignalStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	if err := a.store.UpdateSignalStatus(r.Context(), r.PathValue("id"), projectID, input.Status); err != nil {
+	updated, err := a.store.UpdateSignal(r.Context(), projectID, r.PathValue("id"), input)
+	if err != nil {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": input.Status})
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *api) deleteSignal(w http.ResponseWriter, r *http.Request) {
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.DeleteSignal(r.Context(), projectID, r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+var validPainPointStatuses = map[string]bool{"active": true, "watching": true, "addressed": true, "archived": true}
+
+func (a *api) updatePainPoint(w http.ResponseWriter, r *http.Request) {
+	var input domain.PainPointUpdate
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if input.Status != nil && !validPainPointStatuses[*input.Status] {
+		writeBadRequest(w, "invalid pain point status")
+		return
+	}
+	if input.Severity != nil && (*input.Severity < 0 || *input.Severity > 100) {
+		writeBadRequest(w, "severity must be between 0 and 100")
+		return
+	}
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	updated, err := a.store.UpdatePainPoint(r.Context(), projectID, r.PathValue("id"), input)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *api) deletePainPoint(w http.ResponseWriter, r *http.Request) {
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.DeletePainPoint(r.Context(), projectID, r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *api) listPainPoints(w http.ResponseWriter, r *http.Request) {

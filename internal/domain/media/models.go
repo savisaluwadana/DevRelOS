@@ -66,3 +66,31 @@ type TranscriptUpdate struct {
 	Text     string    `json:"text"`
 	Segments []Segment `json:"segments"`
 }
+
+// AssetUpdate is a partial edit of a media Asset. All fields are optional
+// pointers so a client can update any subset (including the transcript,
+// which used to have its own narrower endpoint) without clobbering the rest.
+type AssetUpdate struct {
+	Title              *string    `json:"title,omitempty"`
+	SourcePath         *string    `json:"sourcePath,omitempty"`
+	SourceURL          *string    `json:"sourceUrl,omitempty"`
+	MediaType          *string    `json:"mediaType,omitempty"`
+	DurationMS         *int64     `json:"durationMs,omitempty"`
+	Status             *string    `json:"status,omitempty"`
+	TranscriptText     *string    `json:"transcriptText,omitempty"`
+	TranscriptLanguage *string    `json:"transcriptLanguage,omitempty"`
+	TranscriptSegments *[]Segment `json:"transcriptSegments,omitempty"`
+}
+
+// ClipUpdate is a partial edit of a media Clip. All fields are optional
+// pointers, including the status field the old narrower endpoint updated.
+type ClipUpdate struct {
+	Title       *string `json:"title,omitempty"`
+	StartMS     *int64  `json:"startMs,omitempty"`
+	EndMS       *int64  `json:"endMs,omitempty"`
+	AspectRatio *string `json:"aspectRatio,omitempty"`
+	Score       *int    `json:"score,omitempty"`
+	Rationale   *string `json:"rationale,omitempty"`
+	CaptionText *string `json:"captionText,omitempty"`
+	Status      *string `json:"status,omitempty"`
+}

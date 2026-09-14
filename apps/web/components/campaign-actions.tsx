@@ -52,8 +52,8 @@ export function CreateCampaignForm() {
 
   return (
     <form className="campaign-form" onSubmit={submit}>
-      <label><span>Name</span><input name="name" required placeholder="KubeCon NA developer activation" /></label>
-      <label className="wide"><span>Objective</span><input name="objective" placeholder="Turn platform-engineering pain points into qualified community conversations" /></label>
+      <label><span>Name</span><input name="name" required placeholder="Developer activation campaign" /></label>
+      <label className="wide"><span>Objective</span><input name="objective" placeholder="Turn recurring developer pain points into qualified community conversations" /></label>
       <label><span>Budget USD</span><input name="budgetUsd" type="number" min="0" step="0.01" defaultValue="0" /></label>
       <label><span>Start</span><input name="startsAt" type="date" /></label>
       <label><span>End</span><input name="endsAt" type="date" /></label>

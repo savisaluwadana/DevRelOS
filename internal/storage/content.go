@@ -145,6 +145,22 @@ func (s *Store) UpdateContentAsset(ctx context.Context, projectID, id string, up
 	return item, nil
 }
 
+func (s *Store) DeleteContentAsset(ctx context.Context, projectID, id string) error {
+	if referenced, err := s.campaignItemReferences(ctx, "content_asset", id); err != nil {
+		return err
+	} else if referenced {
+		return dependentsErr("cannot delete: this content asset is linked to a campaign")
+	}
+	cmd, err := s.pool.Exec(ctx, `DELETE FROM content_assets WHERE id=$1 AND project_id=$2`, id, projectID)
+	if err != nil {
+		return err
+	}
+	if cmd.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
 func (s *Store) ContentAssetExistsForWork(ctx context.Context, projectID, workItemID, channel, format string) (bool, error) {
 	var exists bool
 	err := s.pool.QueryRow(ctx, `
@@ -176,5 +192,3 @@ func (s *Store) GetContentAsset(ctx context.Context, projectID, id string) (cont
 	_ = json.Unmarshal(metadata, &item.Metadata)
 	return item, nil
 }
-
-var _ = pgx.ErrNoRows

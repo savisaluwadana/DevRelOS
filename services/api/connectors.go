@@ -87,6 +87,50 @@ func hasPlaintextCredential(config map[string]any) bool {
 	return false
 }
 
+func (a *api) updateConnector(w http.ResponseWriter, r *http.Request) {
+	var input domain.ConnectorUpdate
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if input.Name != nil {
+		trimmed := strings.TrimSpace(*input.Name)
+		if trimmed == "" {
+			writeBadRequest(w, "name cannot be empty")
+			return
+		}
+		input.Name = &trimmed
+	}
+	if input.Config != nil && hasPlaintextCredential(*input.Config) {
+		writeBadRequest(w, "connector config must not contain plaintext credentials; use secretId or token_env")
+		return
+	}
+	workspaceID, err := a.workspaceID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	updated, err := a.store.UpdateConnector(r.Context(), workspaceID, r.PathValue("id"), input)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *api) deleteConnector(w http.ResponseWriter, r *http.Request) {
+	workspaceID, err := a.workspaceID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.DeleteConnector(r.Context(), workspaceID, r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (a *api) updateConnectorSchedule(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		ScheduleMinutes *int `json:"scheduleMinutes"`

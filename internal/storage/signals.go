@@ -97,13 +97,48 @@ func (s *Store) CreateSignal(ctx context.Context, item domain.Signal) (domain.Si
 	return item, err
 }
 
-func (s *Store) UpdateSignalStatus(ctx context.Context, id, projectID, status string) error {
-	command, err := s.pool.Exec(ctx, `
-		UPDATE signals SET status=$3, updated_at=now() WHERE id=$1 AND project_id=$2`, id, projectID, status)
+func (s *Store) UpdateSignal(ctx context.Context, projectID, id string, update domain.SignalUpdate) (domain.Signal, error) {
+	var item domain.Signal
+	err := s.pool.QueryRow(ctx, `
+		UPDATE signals
+		SET title=COALESCE($3,title),
+		    body=COALESCE($4,body),
+		    topics=COALESCE($5::text[],topics),
+		    engagement_score=COALESCE($6,engagement_score),
+		    relevance_score=COALESCE($7,relevance_score),
+		    status=COALESCE($8,status),
+		    updated_at=now()
+		WHERE id=$1 AND project_id=$2
+		RETURNING id::text, project_id::text, COALESCE(source_record_id::text,''), provider,
+		          COALESCE(external_id,''), COALESCE(canonical_url,''), COALESCE(author_handle,''),
+		          COALESCE(author_name,''), title, body, occurred_at, topics, engagement_score,
+		          relevance_score, status, created_at, updated_at`,
+		id, projectID, update.Title, update.Body, update.Topics, update.EngagementScore,
+		update.RelevanceScore, update.Status,
+	).Scan(
+		&item.ID, &item.ProjectID, &item.SourceRecordID, &item.Provider, &item.ExternalID,
+		&item.CanonicalURL, &item.AuthorHandle, &item.AuthorName, &item.Title, &item.Body,
+		&item.OccurredAt, &item.Topics, &item.EngagementScore, &item.RelevanceScore,
+		&item.Status, &item.CreatedAt, &item.UpdatedAt,
+	)
+	return item, err
+}
+
+func (s *Store) DeleteSignal(ctx context.Context, projectID, id string) error {
+	var citedCount int
+	if err := s.pool.QueryRow(ctx, `
+		SELECT count(*) FROM pain_point_signals ps JOIN signals s ON s.id=ps.signal_id
+		WHERE ps.signal_id=$1 AND s.project_id=$2`, id, projectID).Scan(&citedCount); err != nil {
+		return err
+	}
+	if citedCount > 0 {
+		return dependentsErr("cannot delete: this signal is cited as evidence for a pain point")
+	}
+	cmd, err := s.pool.Exec(ctx, `DELETE FROM signals WHERE id=$1 AND project_id=$2`, id, projectID)
 	if err != nil {
 		return err
 	}
-	if command.RowsAffected() == 0 {
+	if cmd.RowsAffected() == 0 {
 		return pgx.ErrNoRows
 	}
 	return nil
@@ -177,6 +212,51 @@ func (s *Store) ListPainPointEvidence(ctx context.Context, projectID, painPointI
 		items = append(items, item)
 	}
 	return items, rows.Err()
+}
+
+func (s *Store) UpdatePainPoint(ctx context.Context, projectID, id string, update domain.PainPointUpdate) (domain.PainPoint, error) {
+	var item domain.PainPoint
+	err := s.pool.QueryRow(ctx, `
+		UPDATE pain_points
+		SET title=COALESCE($3,title),
+		    summary=COALESCE($4,summary),
+		    persona=COALESCE($5,persona),
+		    severity=COALESCE($6,severity),
+		    status=COALESCE($7,status),
+		    updated_at=now()
+		WHERE id=$1 AND project_id=$2
+		RETURNING id::text, project_id::text, key, title, summary, persona, severity, trend_score,
+		          evidence_count, topics, status, first_seen_at, last_seen_at, created_at, updated_at`,
+		id, projectID, update.Title, update.Summary, update.Persona, update.Severity, update.Status,
+	).Scan(
+		&item.ID, &item.ProjectID, &item.Key, &item.Title, &item.Summary, &item.Persona,
+		&item.Severity, &item.TrendScore, &item.EvidenceCount, &item.Topics, &item.Status,
+		&item.FirstSeenAt, &item.LastSeenAt, &item.CreatedAt, &item.UpdatedAt,
+	)
+	return item, err
+}
+
+func (s *Store) DeletePainPoint(ctx context.Context, projectID, id string) error {
+	if referenced, err := s.workItemSourceReferences(ctx, "pain_point", id); err != nil {
+		return err
+	} else if referenced {
+		return dependentsErr("cannot delete: a work item was generated from this pain point")
+	}
+	if referenced, err := s.feedbackSourceReferences(ctx, "pain_point", id); err != nil {
+		return err
+	} else if referenced {
+		return dependentsErr("cannot delete: a feedback item was generated from this pain point")
+	}
+	// pain_point_signals is owned evidence-weight data (ON DELETE CASCADE) -
+	// no pre-check needed, it cleans up automatically.
+	cmd, err := s.pool.Exec(ctx, `DELETE FROM pain_points WHERE id=$1 AND project_id=$2`, id, projectID)
+	if err != nil {
+		return err
+	}
+	if cmd.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
 }
 
 type PainPointCluster struct {

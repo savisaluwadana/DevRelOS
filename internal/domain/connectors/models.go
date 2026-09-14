@@ -17,6 +17,18 @@ type Connector struct {
 	UpdatedAt       time.Time      `json:"updatedAt"`
 }
 
+// ConnectorUpdate carries partial edits to a Connector; nil fields are left
+// unchanged. SecretID and ScheduleMinutes are intentionally excluded — they
+// already have dedicated endpoints (PUT .../secret, PATCH .../schedule) with
+// their own validation, and folding them in here would let a general edit
+// bypass that validation.
+type ConnectorUpdate struct {
+	Name    *string         `json:"name,omitempty"`
+	Enabled *bool           `json:"enabled,omitempty"`
+	Config  *map[string]any `json:"config,omitempty"`
+	Policy  *map[string]any `json:"policy,omitempty"`
+}
+
 type Run struct {
 	ID              string     `json:"id"`
 	ConnectorID     string     `json:"connectorId"`

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { DeleteButton } from "@/components/delete-button";
 
 const apiURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 const statuses = ["draft", "needs_work", "ready", "submitted", "accepted", "rejected", "withdrawn"];
@@ -16,7 +17,7 @@ export default function SubmissionStatus({ id, initialStatus }: { id: string; in
     setStatus(nextStatus);
     setSaving(true);
     try {
-      const response = await fetch(`${apiURL}/api/v1/submissions/${id}/status`, {
+      const response = await fetch(`${apiURL}/api/v1/submissions/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: nextStatus })
@@ -31,16 +32,22 @@ export default function SubmissionStatus({ id, initialStatus }: { id: string; in
   }
 
   return (
-    <select
-      aria-label="Submission status"
-      className={status === "accepted" ? "status-select accepted" : "status-select"}
-      disabled={saving}
-      value={status}
-      onChange={(event) => update(event.target.value)}
-    >
-      {statuses.map((value) => (
-        <option key={value} value={value}>{value.replaceAll("_", " ")}</option>
-      ))}
-    </select>
+    <span className="row-actions">
+      <select
+        aria-label="Submission status"
+        className={status === "accepted" ? "status-select accepted" : "status-select"}
+        disabled={saving}
+        value={status}
+        onChange={(event) => update(event.target.value)}
+      >
+        {statuses.map((value) => (
+          <option key={value} value={value}>{value.replaceAll("_", " ")}</option>
+        ))}
+      </select>
+      <DeleteButton
+        url={`${apiURL}/api/v1/submissions/${id}`}
+        confirmMessage="Delete this submission? This cannot be undone."
+      />
+    </span>
   );
 }

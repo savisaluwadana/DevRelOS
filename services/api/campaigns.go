@@ -10,7 +10,8 @@ import (
 func (a *api) registerCampaignRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/campaigns", a.listCampaigns)
 	mux.HandleFunc("POST /api/v1/campaigns", a.createCampaign)
-	mux.HandleFunc("PATCH /api/v1/campaigns/{id}/status", a.updateCampaignStatus)
+	mux.HandleFunc("PATCH /api/v1/campaigns/{id}", a.updateCampaign)
+	mux.HandleFunc("DELETE /api/v1/campaigns/{id}", a.deleteCampaign)
 	mux.HandleFunc("GET /api/v1/campaigns/{id}/items", a.listCampaignItems)
 	mux.HandleFunc("POST /api/v1/campaigns/{id}/items", a.linkCampaignItem)
 	mux.HandleFunc("DELETE /api/v1/campaigns/{id}/items/{itemId}", a.deleteCampaignItem)
@@ -70,16 +71,18 @@ func (a *api) createCampaign(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, created)
 }
 
-func (a *api) updateCampaignStatus(w http.ResponseWriter, r *http.Request) {
-	var input struct {
-		Status string `json:"status"`
-	}
+func (a *api) updateCampaign(w http.ResponseWriter, r *http.Request) {
+	var input campaigndomain.CampaignUpdate
 	if err := decodeJSON(r, &input); err != nil {
 		writeBadRequest(w, err.Error())
 		return
 	}
-	if !validCampaignStatus(input.Status) {
+	if input.Status != nil && !validCampaignStatus(*input.Status) {
 		writeBadRequest(w, "invalid campaign status")
+		return
+	}
+	if input.BudgetUSD != nil && *input.BudgetUSD < 0 {
+		writeBadRequest(w, "budgetUsd cannot be negative")
 		return
 	}
 	projectID, err := a.projectID(r)
@@ -92,15 +95,41 @@ func (a *api) updateCampaignStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	if !campaignStatusTransitionAllowed(campaign.Status, input.Status) {
+	if input.Status != nil && *input.Status != campaign.Status && !campaignStatusTransitionAllowed(campaign.Status, *input.Status) {
 		writeBadRequest(w, "invalid campaign status transition")
 		return
 	}
-	if err := a.store.UpdateCampaignStatus(r.Context(), projectID, campaign.ID, input.Status); err != nil {
+	startsAt := campaign.StartsAt
+	if input.StartsAt != nil {
+		startsAt = input.StartsAt
+	}
+	endsAt := campaign.EndsAt
+	if input.EndsAt != nil {
+		endsAt = input.EndsAt
+	}
+	if startsAt != nil && endsAt != nil && endsAt.Before(*startsAt) {
+		writeBadRequest(w, "endsAt cannot be before startsAt")
+		return
+	}
+	updated, err := a.store.UpdateCampaign(r.Context(), projectID, campaign.ID, input)
+	if err != nil {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": input.Status})
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *api) deleteCampaign(w http.ResponseWriter, r *http.Request) {
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.DeleteCampaign(r.Context(), projectID, r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *api) listCampaignItems(w http.ResponseWriter, r *http.Request) {

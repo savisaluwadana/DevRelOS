@@ -16,6 +16,17 @@ type Campaign struct {
 	UpdatedAt time.Time      `json:"updatedAt"`
 }
 
+// CampaignUpdate carries partial edits to a Campaign; nil fields are left unchanged.
+type CampaignUpdate struct {
+	Name      *string         `json:"name,omitempty"`
+	Objective *string         `json:"objective,omitempty"`
+	Status    *string         `json:"status,omitempty"`
+	StartsAt  *time.Time      `json:"startsAt,omitempty"`
+	EndsAt    *time.Time      `json:"endsAt,omitempty"`
+	BudgetUSD *float64        `json:"budgetUsd,omitempty"`
+	Target    *map[string]any `json:"target,omitempty"`
+}
+
 type Item struct {
 	ID         string         `json:"id"`
 	CampaignID string         `json:"campaignId"`

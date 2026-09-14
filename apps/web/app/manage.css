@@ -32,6 +32,12 @@
 .cfp-panel { margin-top: 0; }
 .policy-note { margin: 0; color: #9e8f68; border: 1px solid #403923; background: #17150f; border-radius: 8px; padding: 10px 11px; font-size: 10px; line-height: 1.5; }
 .form-action-row { display: flex; align-items: center; gap: 10px; }
+.record-row:has(.inline-edit-form) { flex-wrap: wrap; align-items: flex-start; }
+.inline-edit-form { flex: 1 1 100%; display: flex; flex-direction: column; gap: 10px; }
+.inline-edit-form label { display: flex; flex-direction: column; gap: 6px; color: #8d97a5; font-size: 10px; font-weight: 650; }
+.inline-edit-form input,
+.inline-edit-form select,
+.inline-edit-form textarea { width: 100%; border: 1px solid #2a313b; border-radius: 8px; background: #0e1217; color: #edf1f6; padding: 10px 11px; outline: none; resize: vertical; }
 .connector-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 0 12px 12px; }
 .connector-card { border: 1px solid #252c35; background: #141820; border-radius: 10px; padding: 14px; }
 .connector-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }

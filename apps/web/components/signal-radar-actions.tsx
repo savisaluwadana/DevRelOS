@@ -75,10 +75,10 @@ export function SignalCaptureForm() {
         <label>Author / handle<input name="authorHandle" placeholder="@developer" /></label>
         <label>Canonical URL<input name="canonicalUrl" placeholder="https://…" type="url" /></label>
       </div>
-      <label>Signal title<input name="title" placeholder="Kubernetes onboarding takes too many manual steps" /></label>
+      <label>Signal title<input name="title" placeholder="Short summary of the developer problem" /></label>
       <label>Evidence / developer comment<textarea name="body" required rows={4} placeholder="Paste or summarize the developer complaint, question or friction point." /></label>
       <div className="form-grid-three">
-        <label>Topics<input name="topics" placeholder="kubernetes, platform-engineering" /></label>
+        <label>Topics<input name="topics" placeholder="comma-separated topics" /></label>
         <label>Relevance (0–100)<input name="relevanceScore" min="0" max="100" type="number" defaultValue="70" /></label>
         <label>Engagement score<input name="engagementScore" min="0" type="number" defaultValue="0" /></label>
       </div>

@@ -142,3 +142,7 @@ td strong { color: #f3f5f8; display: block; font-weight: 650; }
   .metrics-grid { grid-template-columns: 1fr 1fr; }
   .community-grid { grid-template-columns: 1fr; }
 }
+
+.row-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.delete-action { display: inline-flex; align-items: center; gap: 6px; }
+

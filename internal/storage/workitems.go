@@ -96,9 +96,48 @@ func (s *Store) CreateWorkItem(ctx context.Context, item workdomain.WorkItem) (w
 	return item, err
 }
 
-func (s *Store) UpdateWorkItemStatus(ctx context.Context, projectID, id, status string) error {
-	command, err := s.pool.Exec(ctx, `
-		UPDATE work_items SET status=$3, updated_at=now() WHERE id=$1 AND project_id=$2`, id, projectID, status)
+// UpdateWorkItem applies a partial edit to a WorkItem. Status transition
+// validity (if any) is the API layer's job - this only applies whatever
+// non-nil fields it is given.
+func (s *Store) UpdateWorkItem(ctx context.Context, projectID, id string, update workdomain.WorkItemUpdate) (workdomain.WorkItem, error) {
+	var item workdomain.WorkItem
+	var metadata []byte
+	err := s.pool.QueryRow(ctx, `
+		UPDATE work_items
+		SET title=COALESCE($3,title),
+		    description=COALESCE($4,description),
+		    priority=COALESCE($5,priority),
+		    status=COALESCE($6,status),
+		    owner=COALESCE($7,owner),
+		    due_at=COALESCE($8,due_at),
+		    updated_at=now()
+		WHERE id=$1 AND project_id=$2
+		RETURNING id::text, project_id::text, source_type, COALESCE(source_id::text,''), kind,
+		          title, description, priority, status, owner, due_at, metadata, created_at, updated_at`,
+		id, projectID, update.Title, update.Description, update.Priority, update.Status, update.Owner, update.DueAt,
+	).Scan(&item.ID, &item.ProjectID, &item.SourceType, &item.SourceID, &item.Kind,
+		&item.Title, &item.Description, &item.Priority, &item.Status, &item.Owner, &item.DueAt,
+		&metadata, &item.CreatedAt, &item.UpdatedAt)
+	if err != nil {
+		return item, err
+	}
+	item.Metadata = map[string]any{}
+	_ = json.Unmarshal(metadata, &item.Metadata)
+	return item, nil
+}
+
+// DeleteWorkItem removes a work item. Work items are content that gets
+// linked into campaigns via the polymorphic campaign_items table, so a
+// delete is blocked while such a link exists. Content Assets reference a
+// work item via content_assets.work_item_id with ON DELETE SET NULL - that
+// is an intentional soft link and does not block deletion here.
+func (s *Store) DeleteWorkItem(ctx context.Context, projectID, id string) error {
+	if referenced, err := s.campaignItemReferences(ctx, "work_item", id); err != nil {
+		return err
+	} else if referenced {
+		return dependentsErr("cannot delete: this work item is linked to a campaign")
+	}
+	command, err := s.pool.Exec(ctx, `DELETE FROM work_items WHERE id=$1 AND project_id=$2`, id, projectID)
 	if err != nil {
 		return err
 	}

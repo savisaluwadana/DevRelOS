@@ -72,6 +72,61 @@ func (s *Store) CreateConnector(ctx context.Context, item domain.Connector) (dom
 	return item, err
 }
 
+func (s *Store) UpdateConnector(ctx context.Context, workspaceID, id string, update domain.ConnectorUpdate) (domain.Connector, error) {
+	var config, policy []byte
+	if update.Config != nil {
+		marshalled, err := json.Marshal(*update.Config)
+		if err != nil {
+			return domain.Connector{}, err
+		}
+		config = marshalled
+	}
+	if update.Policy != nil {
+		marshalled, err := json.Marshal(*update.Policy)
+		if err != nil {
+			return domain.Connector{}, err
+		}
+		policy = marshalled
+	}
+	var item domain.Connector
+	var configOut, policyOut []byte
+	err := s.pool.QueryRow(ctx, `
+		UPDATE connectors
+		SET name=COALESCE($3,name),
+		    enabled=COALESCE($4,enabled),
+		    config=COALESCE($5::jsonb,config),
+		    policy=COALESCE($6::jsonb,policy),
+		    updated_at=now()
+		WHERE id=$1 AND workspace_id=$2
+		RETURNING id::text, workspace_id::text, provider, name, enabled, config, policy,
+		          COALESCE(secret_id::text,''), schedule_minutes, next_run_at, created_at, updated_at`,
+		id, workspaceID, update.Name, update.Enabled, config, policy,
+	).Scan(&item.ID, &item.WorkspaceID, &item.Provider, &item.Name, &item.Enabled, &configOut, &policyOut,
+		&item.SecretID, &item.ScheduleMinutes, &item.NextRunAt, &item.CreatedAt, &item.UpdatedAt)
+	if err != nil {
+		return item, err
+	}
+	item.Config = map[string]any{}
+	item.Policy = map[string]any{}
+	_ = json.Unmarshal(configOut, &item.Config)
+	_ = json.Unmarshal(policyOut, &item.Policy)
+	return item, nil
+}
+
+func (s *Store) DeleteConnector(ctx context.Context, workspaceID, id string) error {
+	// connector_runs is an owned log relationship (ON DELETE CASCADE) - no
+	// pre-check needed. connector_secrets is independent; connectors.secret_id
+	// has ON DELETE SET NULL so deleting a connector never touches its secret.
+	cmd, err := s.pool.Exec(ctx, `DELETE FROM connectors WHERE id=$1 AND workspace_id=$2`, id, workspaceID)
+	if err != nil {
+		return err
+	}
+	if cmd.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
 func (s *Store) UpdateConnectorSecret(ctx context.Context, workspaceID, connectorID, secretID string) error {
 	command, err := s.pool.Exec(ctx, `
 		UPDATE connectors

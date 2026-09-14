@@ -170,19 +170,19 @@ export default function OperatorForms({ events, cfps, talks }: Props) {
       <div className="form-body">
         {active === "event" && (
           <form className="operator-form" onSubmit={onEvent}>
-            <label>Name<input name="name" required placeholder="KubeCon + CloudNativeCon Europe" /></label>
+            <label>Name<input name="name" required placeholder="Conference name" /></label>
             <label>Website<input name="websiteUrl" type="url" placeholder="https://..." /></label>
             <div className="form-grid-three">
               <label>City<input name="city" /></label>
               <label>Country<input name="country" /></label>
-              <label>Timezone<input name="timezone" placeholder="Europe/Amsterdam" /></label>
+              <label>Timezone<input name="timezone" placeholder="Region/City" /></label>
             </div>
             <div className="form-grid-three">
               <label>Starts<input name="startsAt" type="datetime-local" /></label>
               <label>Ends<input name="endsAt" type="datetime-local" /></label>
               <label>Type<select name="eventType" defaultValue="conference"><option>conference</option><option>meetup</option><option>webinar</option><option>workshop</option><option>hackathon</option></select></label>
             </div>
-            <label>Topics<input name="topics" placeholder="kubernetes, platform engineering, backstage" /></label>
+            <label>Topics<input name="topics" placeholder="comma-separated topics" /></label>
             <label>Description<textarea name="description" rows={3} /></label>
             <button className="button primary" disabled={saving}>{saving ? "Saving…" : "Create event"}</button>
           </form>
@@ -200,7 +200,7 @@ export default function OperatorForms({ events, cfps, talks }: Props) {
               <label>Opens<input name="opensAt" type="datetime-local" /></label>
               <label>Closes<input name="closesAt" type="datetime-local" /></label>
             </div>
-            <label>Tracks<input name="tracks" placeholder="platform engineering, kubernetes, developer experience" /></label>
+            <label>Tracks<input name="tracks" placeholder="comma-separated tracks" /></label>
             <label>Requirements<textarea name="requirements" rows={3} /></label>
             <button className="button primary" disabled={saving || events.length === 0}>{saving ? "Saving…" : "Create CFP"}</button>
           </form>
@@ -215,7 +215,7 @@ export default function OperatorForms({ events, cfps, talks }: Props) {
               <label>Duration<input name="durationMinutes" type="number" min="5" defaultValue="30" /></label>
               <label>Demo URL<input name="demoUrl" type="url" /></label>
             </div>
-            <label>Topics<input name="topics" placeholder="platform engineering, kubernetes, developer portals" /></label>
+            <label>Topics<input name="topics" placeholder="comma-separated topics" /></label>
             <label>Slides URL<input name="slidesUrl" type="url" /></label>
             <label>Description<textarea name="description" rows={3} /></label>
             <button className="button primary" disabled={saving}>{saving ? "Saving…" : "Add talk"}</button>
@@ -225,16 +225,16 @@ export default function OperatorForms({ events, cfps, talks }: Props) {
         {active === "community" && (
           <form className="operator-form" onSubmit={onCommunity}>
             <div className="form-grid-two">
-              <label>Name<input name="name" required placeholder="Cloud Native Colombo" /></label>
+              <label>Name<input name="name" required placeholder="Community name" /></label>
               <label>Platform<input name="platform" placeholder="ocg" /></label>
             </div>
             <label>Website<input name="websiteUrl" type="url" /></label>
             <div className="form-grid-three">
               <label>City<input name="city" /></label>
               <label>Country<input name="country" /></label>
-              <label>Timezone<input name="timezone" placeholder="Asia/Colombo" /></label>
+              <label>Timezone<input name="timezone" placeholder="Region/City" /></label>
             </div>
-            <label>Topics<input name="topics" placeholder="kubernetes, devops, platform engineering" /></label>
+            <label>Topics<input name="topics" placeholder="comma-separated topics" /></label>
             <div className="form-grid-three">
               <label>Members<input name="memberCount" type="number" min="0" /></label>
               <label>Activity score<input name="activityScore" type="number" min="0" max="100" /></label>

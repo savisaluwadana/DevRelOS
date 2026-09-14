@@ -123,9 +123,9 @@ export function ConnectorForm() {
   }
 
   const placeholder = provider === "bluesky"
-    ? "Platform engineering pain points"
+    ? "Developer pain points"
     : provider === "ocg"
-      ? "US platform engineering communities"
+      ? "Regional developer communities"
       : provider === "github.issues"
         ? "OpenChoreo GitHub issues"
         : provider === "github.releases"
@@ -133,9 +133,9 @@ export function ConnectorForm() {
           : provider === "github.discussions"
             ? "OpenChoreo community discussions"
             : provider === "hackernews"
-              ? "Hacker News platform engineering"
+              ? "Hacker News developer discussion"
               : provider === "rss"
-                ? "Kubernetes project blog feed"
+                ? "Project blog feed"
                 : "Developer events discovery";
 
   return (
@@ -163,9 +163,9 @@ export function ConnectorForm() {
 
       {provider === "bluesky" && (
         <>
-          <label>Search query<input name="query" placeholder='"platform engineering" kubernetes' required /></label>
+          <label>Search query<input name="query" placeholder='"exact phrase" keyword' required /></label>
           <div className="form-grid-two">
-            <label>Topics<input name="topics" placeholder="platform-engineering, kubernetes" /></label>
+            <label>Topics<input name="topics" placeholder="comma-separated topics" /></label>
             <label>Maximum posts per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="50" /></label>
           </div>
           <p className="policy-note">Bluesky search uses the public AppView. DevRelOS stores normalized evidence and provenance by default rather than treating public posts as a relicensable content corpus.</p>
@@ -175,12 +175,12 @@ export function ConnectorForm() {
       {provider === "ocg" && (
         <>
           <div className="form-grid-three">
-            <label>Search query<input name="query" placeholder="platform engineering" /></label>
+            <label>Search query<input name="query" placeholder="Search keywords" /></label>
             <label>Region<input name="region" placeholder="Optional OCG region" /></label>
             <label>Group category<input name="groupCategory" placeholder="Optional category" /></label>
           </div>
           <div className="form-grid-two">
-            <label>Desired topics<input name="topics" placeholder="platform-engineering, kubernetes, devex" /></label>
+            <label>Desired topics<input name="topics" placeholder="comma-separated topics" /></label>
             <label>Maximum groups per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="50" /></label>
           </div>
           <p className="policy-note">This connector uses OCG&apos;s public JSON group-search endpoint and defaults to the CNCF community. Discovered groups are upserted into the Community pipeline with source provenance.</p>
@@ -201,11 +201,11 @@ export function ConnectorForm() {
             <label>Labels<input name="labels" placeholder="bug, documentation" /></label>
           </div>
           <div className="form-grid-two">
-            <label>Local keyword filter<input name="query" placeholder="Optional: kubernetes deployment" /></label>
+            <label>Local keyword filter<input name="query" placeholder="Optional keyword filter" /></label>
             <label>GitHub token env var<input name="tokenEnv" placeholder="GITHUB_TOKEN (optional)" /></label>
           </div>
           <div className="form-grid-two">
-            <label>Topics<input name="topics" placeholder="kubernetes, devex, documentation" /></label>
+            <label>Topics<input name="topics" placeholder="comma-separated topics" /></label>
             <label>Maximum issues per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="50" /></label>
           </div>
           <label className="checkbox-label"><input name="includePullRequests" type="checkbox" /> Include pull requests returned by the Issues endpoint</label>
@@ -220,8 +220,8 @@ export function ConnectorForm() {
             <label>GitHub token env var<input name="tokenEnv" placeholder="GITHUB_TOKEN (optional)" /></label>
           </div>
           <div className="form-grid-three">
-            <label>Optional keyword filter<input name="query" placeholder="kubernetes" /></label>
-            <label>Topics<input name="topics" placeholder="releases, kubernetes, devtools" /></label>
+            <label>Optional keyword filter<input name="query" placeholder="Keyword" /></label>
+            <label>Topics<input name="topics" placeholder="comma-separated topics" /></label>
             <label>Maximum releases per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="30" /></label>
           </div>
           <div className="form-grid-two">
@@ -239,8 +239,8 @@ export function ConnectorForm() {
             <label>GitHub token env var<input name="tokenEnv" placeholder="GITHUB_TOKEN" required /></label>
           </div>
           <div className="form-grid-three">
-            <label>Optional keyword filter<input name="query" placeholder="platform engineering" /></label>
-            <label>Topics<input name="topics" placeholder="community, devex, kubernetes" /></label>
+            <label>Optional keyword filter<input name="query" placeholder="Search keywords" /></label>
+            <label>Topics<input name="topics" placeholder="comma-separated topics" /></label>
             <label>Maximum discussions per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="30" /></label>
           </div>
           <p className="policy-note">GitHub Discussions uses the authenticated GraphQL API. Store only the environment-variable name here; the worker reads the actual token from its runtime environment.</p>
@@ -250,7 +250,7 @@ export function ConnectorForm() {
       {provider === "hackernews" && (
         <>
           <div className="form-grid-three">
-            <label>Keyword query<input name="query" placeholder="platform engineering" required /></label>
+            <label>Keyword query<input name="query" placeholder="Search keywords" required /></label>
             <label>Feed
               <select name="feed" defaultValue="new">
                 <option value="new">New</option>
@@ -263,7 +263,7 @@ export function ConnectorForm() {
             <label>Stories scanned<input name="scanLimit" type="number" min="1" max="100" defaultValue="60" /></label>
           </div>
           <div className="form-grid-two">
-            <label>Topics<input name="topics" placeholder="platform-engineering, kubernetes, devtools" /></label>
+            <label>Topics<input name="topics" placeholder="comma-separated topics" /></label>
             <label>Maximum matches per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="30" /></label>
           </div>
           <p className="policy-note">Hacker News ingestion uses the official Firebase API and performs bounded keyword filtering locally. DevRelOS stores normalized evidence and the canonical HN discussion link.</p>
@@ -274,8 +274,8 @@ export function ConnectorForm() {
         <>
           <label>Feed URL<input name="feedUrl" type="url" placeholder="https://example.com/feed.xml" required /></label>
           <div className="form-grid-three">
-            <label>Optional keyword filter<input name="query" placeholder="platform engineering" /></label>
-            <label>Topics<input name="topics" placeholder="kubernetes, releases, devtools" /></label>
+            <label>Optional keyword filter<input name="query" placeholder="Optional keyword filter" /></label>
+            <label>Topics<input name="topics" placeholder="comma-separated topics" /></label>
             <label>Maximum entries per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="50" /></label>
           </div>
           <p className="policy-note">RSS/Atom feeds must use HTTPS. The worker blocks private, loopback and link-local destinations after DNS resolution, revalidates redirects and limits feed responses to 2 MiB to reduce SSRF and resource-exhaustion risk.</p>

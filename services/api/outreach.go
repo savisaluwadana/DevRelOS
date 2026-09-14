@@ -11,13 +11,20 @@ import (
 func (a *api) registerOutreachRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/contacts", a.listContacts)
 	mux.HandleFunc("POST /api/v1/contacts", a.createContact)
+	mux.HandleFunc("PATCH /api/v1/contacts/{id}", a.updateContact)
+	mux.HandleFunc("DELETE /api/v1/contacts/{id}", a.deleteContact)
 	mux.HandleFunc("GET /api/v1/relationships", a.listRelationships)
 	mux.HandleFunc("POST /api/v1/relationships", a.createRelationship)
+	mux.HandleFunc("PATCH /api/v1/relationships/{id}", a.updateRelationship)
+	mux.HandleFunc("DELETE /api/v1/relationships/{id}", a.deleteRelationship)
 	mux.HandleFunc("GET /api/v1/touchpoints", a.listTouchpoints)
 	mux.HandleFunc("POST /api/v1/touchpoints", a.createTouchpoint)
+	mux.HandleFunc("PATCH /api/v1/touchpoints/{id}", a.updateTouchpoint)
+	mux.HandleFunc("DELETE /api/v1/touchpoints/{id}", a.deleteTouchpoint)
 	mux.HandleFunc("GET /api/v1/outreach", a.listOutreach)
 	mux.HandleFunc("POST /api/v1/outreach", a.createOutreach)
-	mux.HandleFunc("PATCH /api/v1/outreach/{id}/status", a.updateOutreachStatus)
+	mux.HandleFunc("PATCH /api/v1/outreach/{id}", a.updateOutreach)
+	mux.HandleFunc("DELETE /api/v1/outreach/{id}", a.deleteOutreach)
 }
 
 func (a *api) listContacts(w http.ResponseWriter, r *http.Request) {
@@ -56,6 +63,42 @@ func (a *api) createContact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)
+}
+
+func (a *api) updateContact(w http.ResponseWriter, r *http.Request) {
+	var input domain.ContactUpdate
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if input.Name != nil && strings.TrimSpace(*input.Name) == "" {
+		writeBadRequest(w, "name cannot be empty")
+		return
+	}
+	workspaceID, err := a.workspaceID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	updated, err := a.store.UpdateContact(r.Context(), workspaceID, r.PathValue("id"), input)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *api) deleteContact(w http.ResponseWriter, r *http.Request) {
+	workspaceID, err := a.workspaceID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.DeleteContact(r.Context(), workspaceID, r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *api) listRelationships(w http.ResponseWriter, r *http.Request) {
@@ -99,6 +142,47 @@ func (a *api) createRelationship(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)
+}
+
+func (a *api) updateRelationship(w http.ResponseWriter, r *http.Request) {
+	var input domain.RelationshipUpdate
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	allowedStages := map[string]bool{"cold": true, "warm": true, "engaged": true, "partner": true, "dormant": true}
+	if input.Stage != nil && !allowedStages[*input.Stage] {
+		writeBadRequest(w, "invalid relationship stage")
+		return
+	}
+	if input.Strength != nil && (*input.Strength < 0 || *input.Strength > 100) {
+		writeBadRequest(w, "strength must be between 0 and 100")
+		return
+	}
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	updated, err := a.store.UpdateRelationship(r.Context(), projectID, r.PathValue("id"), input)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *api) deleteRelationship(w http.ResponseWriter, r *http.Request) {
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.DeleteRelationship(r.Context(), projectID, r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *api) listTouchpoints(w http.ResponseWriter, r *http.Request) {
@@ -157,6 +241,42 @@ func (a *api) createTouchpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)
+}
+
+func (a *api) updateTouchpoint(w http.ResponseWriter, r *http.Request) {
+	var input domain.TouchpointUpdate
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if input.Summary != nil && strings.TrimSpace(*input.Summary) == "" {
+		writeBadRequest(w, "summary cannot be empty")
+		return
+	}
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	updated, err := a.store.UpdateTouchpoint(r.Context(), projectID, r.PathValue("id"), input)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *api) deleteTouchpoint(w http.ResponseWriter, r *http.Request) {
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.DeleteTouchpoint(r.Context(), projectID, r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *api) listOutreach(w http.ResponseWriter, r *http.Request) {
