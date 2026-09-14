@@ -326,10 +326,17 @@ func (a *api) createOutreach(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, created)
 }
 
-func (a *api) updateOutreachStatus(w http.ResponseWriter, r *http.Request) {
-	var input struct {
-		Status string `json:"status"`
-	}
+// updateOutreach is the general PATCH handler for Outreach: subject/body/
+// rationale are freely merged via COALESCE regardless of whether status is
+// also changing, exactly like updateCFP/updateEvent treat their optional
+// fields. The status-transition guard (validOutreachTransition) and the
+// email/SMTP delivery gate — the two rules that keep "sent" reachable only
+// through a successful SMTP delivery — only run when Status is provided, and
+// still fully gate what a client can do to status: this general endpoint
+// must not let a client reach "sent" for an email outreach any more than the
+// old dedicated .../status endpoint could.
+func (a *api) updateOutreach(w http.ResponseWriter, r *http.Request) {
+	var input domain.OutreachUpdate
 	if err := decodeJSON(r, &input); err != nil {
 		writeBadRequest(w, err.Error())
 		return
@@ -339,38 +346,61 @@ func (a *api) updateOutreachStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	state, err := a.store.OutreachState(r.Context(), projectID, r.PathValue("id"))
+
+	if input.Status != nil {
+		state, err := a.store.OutreachState(r.Context(), projectID, r.PathValue("id"))
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		if !validOutreachTransition(state.Status, *input.Status) {
+			writeBadRequest(w, "invalid outreach status transition")
+			return
+		}
+		if state.Channel == "email" && *input.Status == "sent" {
+			writeBadRequest(w, "email outreach is marked sent only after SMTP delivery succeeds")
+			return
+		}
+		if state.Channel == "email" && *input.Status == "queued" {
+			delivery, queueErr := a.store.QueueOutreachDelivery(r.Context(), projectID, r.PathValue("id"))
+			if queueErr != nil {
+				writeBadRequest(w, queueErr.Error())
+				return
+			}
+			// QueueOutreachDelivery already wrote status='queued'; still run the
+			// general update so any non-status fields on the same request (and
+			// the now-redundant, harmless status='queued' merge) are applied.
+			if _, err := a.store.UpdateOutreach(r.Context(), projectID, r.PathValue("id"), input); err != nil {
+				writeError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusAccepted, map[string]any{"status": "queued", "deliveryId": delivery.ID, "transport": delivery.Transport})
+			return
+		}
+	}
+
+	updated, err := a.store.UpdateOutreach(r.Context(), projectID, r.PathValue("id"), input)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	if !validOutreachTransition(state.Status, input.Status) {
-		writeBadRequest(w, "invalid outreach status transition")
-		return
+	if input.Status != nil && *input.Status == "cancelled" {
+		_ = a.store.CancelOutreachDelivery(r.Context(), projectID, r.PathValue("id"))
 	}
+	writeJSON(w, http.StatusOK, updated)
+}
 
-	if state.Channel == "email" && input.Status == "sent" {
-		writeBadRequest(w, "email outreach is marked sent only after SMTP delivery succeeds")
-		return
-	}
-	if state.Channel == "email" && input.Status == "queued" {
-		delivery, queueErr := a.store.QueueOutreachDelivery(r.Context(), projectID, r.PathValue("id"))
-		if queueErr != nil {
-			writeBadRequest(w, queueErr.Error())
-			return
-		}
-		writeJSON(w, http.StatusAccepted, map[string]any{"status": "queued", "deliveryId": delivery.ID, "transport": delivery.Transport})
-		return
-	}
-
-	if err := a.store.UpdateOutreachStatus(r.Context(), projectID, r.PathValue("id"), input.Status); err != nil {
+func (a *api) deleteOutreach(w http.ResponseWriter, r *http.Request) {
+	projectID, err := a.projectID(r)
+	if err != nil {
 		writeError(w, err)
 		return
 	}
-	if input.Status == "cancelled" {
-		_ = a.store.CancelOutreachDelivery(r.Context(), projectID, r.PathValue("id"))
+	if err := a.store.DeleteOutreach(r.Context(), projectID, r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": input.Status})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func validOutreachTransition(current, next string) bool {

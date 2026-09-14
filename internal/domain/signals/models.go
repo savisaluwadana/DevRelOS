@@ -56,9 +56,9 @@ type PainPoint struct {
 
 // PainPointUpdate carries partial edits to a PainPoint; nil fields are left unchanged.
 type PainPointUpdate struct {
-	Title   *string `json:"title,omitempty"`
-	Summary *string `json:"summary,omitempty"`
-	Persona *string `json:"persona,omitempty"`
-	Severity *int   `json:"severity,omitempty"`
-	Status  *string `json:"status,omitempty"`
+	Title    *string `json:"title,omitempty"`
+	Summary  *string `json:"summary,omitempty"`
+	Persona  *string `json:"persona,omitempty"`
+	Severity *int    `json:"severity,omitempty"`
+	Status   *string `json:"status,omitempty"`
 }
