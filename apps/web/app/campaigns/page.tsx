@@ -1,4 +1,4 @@
-import { CampaignControls, CreateCampaignForm } from "@/components/campaign-actions";
+import { CampaignControls, CampaignEditor, CreateCampaignForm } from "@/components/campaign-actions";
 import { CampaignLinkedItems } from "@/components/campaign-linked-items";
 import { getCampaignData } from "@/lib/campaign-api";
 
@@ -71,6 +71,7 @@ export default async function CampaignsPage() {
             </div>
 
             {Object.keys(report.metrics).length > 0 && <div className="campaign-manual-metrics">{Object.entries(report.metrics).map(([key, value]) => <div key={key}><span>{key.replaceAll("_", " ")}</span><strong>{value}</strong></div>)}</div>}
+            <CampaignEditor campaign={report.campaign} />
             <CampaignControls campaign={report.campaign} />
           </article>
         ))}
