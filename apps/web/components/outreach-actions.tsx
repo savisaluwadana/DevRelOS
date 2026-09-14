@@ -61,6 +61,56 @@ export function ContactForm() {
   );
 }
 
+export function ContactEditor({ contact }: { contact: Contact }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    setBusy(true); setMessage("");
+    try {
+      await request(`/api/v1/contacts/${contact.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: String(data.get("name") ?? ""),
+          role: String(data.get("role") ?? ""),
+          email: String(data.get("email") ?? ""),
+          publicProfileUrl: String(data.get("publicProfileUrl") ?? ""),
+          sourceUrl: String(data.get("sourceUrl") ?? ""),
+          doNotContact: data.get("doNotContact") === "on"
+        })
+      });
+      setEditing(false);
+      setMessage("Saved.");
+      router.refresh();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save contact."); }
+    finally { setBusy(false); }
+  }
+
+  if (editing) {
+    return (
+      <form className="content-editor" onSubmit={save}>
+        <div className="form-grid-two"><label>Name<input name="name" defaultValue={contact.name} required /></label><label>Role<input name="role" defaultValue={contact.role} /></label></div>
+        <div className="form-grid-two"><label>Email<input name="email" type="email" defaultValue={contact.email} /></label><label>Public profile<input name="publicProfileUrl" type="url" defaultValue={contact.publicProfileUrl} /></label></div>
+        <label>Source URL<input name="sourceUrl" type="url" defaultValue={contact.sourceUrl} /></label>
+        <label className="checkbox-label"><input name="doNotContact" type="checkbox" defaultChecked={contact.doNotContact} /> Do not contact</label>
+        <div className="form-action-row"><button className="button primary" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button><button className="button ghost" type="button" onClick={() => setEditing(false)}>Cancel</button>{message && <span className="form-message">{message}</span>}</div>
+      </form>
+    );
+  }
+
+  return (
+    <div className="content-controls">
+      <button className="button ghost small-button" type="button" onClick={() => setEditing(true)}>Edit</button>
+      <DeleteButton url={`/api/v1/contacts/${contact.id}`} confirmMessage={`Delete contact "${contact.name}"? This cannot be undone.`} />
+      {message && <span className="action-note">{message}</span>}
+    </div>
+  );
+}
+
 export function RelationshipForm({ contacts, communities }: { contacts: Contact[]; communities: Community[] }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -103,6 +153,56 @@ export function RelationshipForm({ contacts, communities }: { contacts: Contact[
   );
 }
 
+export function RelationshipEditor({ relationship }: { relationship: Relationship }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    setBusy(true); setMessage("");
+    try {
+      await request(`/api/v1/relationships/${relationship.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          stage: String(data.get("stage") ?? relationship.stage),
+          strength: Number(data.get("strength") ?? relationship.strength),
+          nextFollowUpAt: data.get("nextFollowUpAt") ? new Date(String(data.get("nextFollowUpAt"))).toISOString() : undefined,
+          notes: String(data.get("notes") ?? "")
+        })
+      });
+      setEditing(false);
+      setMessage("Saved.");
+      router.refresh();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save relationship."); }
+    finally { setBusy(false); }
+  }
+
+  if (editing) {
+    return (
+      <form className="content-editor" onSubmit={save}>
+        <div className="form-grid-three">
+          <label>Stage<select name="stage" defaultValue={relationship.stage}><option value="cold">Cold</option><option value="warm">Warm</option><option value="engaged">Engaged</option><option value="partner">Partner</option><option value="dormant">Dormant</option></select></label>
+          <label>Strength<input name="strength" type="number" min="0" max="100" defaultValue={relationship.strength} /></label>
+          <label>Next follow-up<input name="nextFollowUpAt" type="datetime-local" defaultValue={relationship.nextFollowUpAt ? relationship.nextFollowUpAt.slice(0, 16) : ""} /></label>
+        </div>
+        <label>Notes<textarea name="notes" rows={3} defaultValue={relationship.notes} /></label>
+        <div className="form-action-row"><button className="button primary" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button><button className="button ghost" type="button" onClick={() => setEditing(false)}>Cancel</button>{message && <span className="form-message">{message}</span>}</div>
+      </form>
+    );
+  }
+
+  return (
+    <div className="content-controls">
+      <button className="button ghost small-button" type="button" onClick={() => setEditing(true)}>Edit</button>
+      <DeleteButton url={`/api/v1/relationships/${relationship.id}`} confirmMessage="Delete this relationship? This cannot be undone." />
+      {message && <span className="action-note">{message}</span>}
+    </div>
+  );
+}
+
 export function TouchpointForm({ relationships }: { relationships: Relationship[] }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false); const [message, setMessage] = useState("");
@@ -125,6 +225,50 @@ export function TouchpointForm({ relationships }: { relationships: Relationship[
       <label>Summary<textarea name="summary" rows={3} required placeholder="What happened and what is the next useful step?" /></label>
       <div className="form-action-row"><button className="button primary" disabled={busy}>{busy ? "Logging…" : "Log touchpoint"}</button><FormResult message={message} /></div>
     </form>
+  );
+}
+
+export function TouchpointEditor({ touchpoint }: { touchpoint: Touchpoint }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    setBusy(true); setMessage("");
+    try {
+      await request(`/api/v1/touchpoints/${touchpoint.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          summary: String(data.get("summary") ?? ""),
+          occurredAt: data.get("occurredAt") ? new Date(String(data.get("occurredAt"))).toISOString() : undefined
+        })
+      });
+      setEditing(false);
+      setMessage("Saved.");
+      router.refresh();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save touchpoint."); }
+    finally { setBusy(false); }
+  }
+
+  if (editing) {
+    return (
+      <form className="content-editor" onSubmit={save}>
+        <label>Occurred at<input name="occurredAt" type="datetime-local" defaultValue={touchpoint.occurredAt.slice(0, 16)} /></label>
+        <label>Summary<textarea name="summary" rows={2} defaultValue={touchpoint.summary} required /></label>
+        <div className="form-action-row"><button className="button primary" disabled={busy}>{busy ? "Saving…" : "Save"}</button><button className="button ghost" type="button" onClick={() => setEditing(false)}>Cancel</button>{message && <span className="form-message">{message}</span>}</div>
+      </form>
+    );
+  }
+
+  return (
+    <div className="content-controls">
+      <button className="button ghost small-button" type="button" onClick={() => setEditing(true)}>Edit</button>
+      <DeleteButton url={`/api/v1/touchpoints/${touchpoint.id}`} confirmMessage="Delete this touchpoint? This cannot be undone." />
+      {message && <span className="action-note">{message}</span>}
+    </div>
   );
 }
 
@@ -178,9 +322,55 @@ export function OutreachActions({ item }: { item: Outreach }) {
   const router = useRouter(); const [busy, setBusy] = useState(false); const [message, setMessage] = useState("");
   async function move(status: Outreach["status"]) {
     setBusy(true); setMessage("");
-    try { await request(`/api/v1/outreach/${item.id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }); router.refresh(); }
+    try { await request(`/api/v1/outreach/${item.id}`, { method: "PATCH", body: JSON.stringify({ status }) }); router.refresh(); }
     catch (error) { setMessage(error instanceof Error ? error.message : "Transition failed."); }
     finally { setBusy(false); }
   }
   return <div className="outreach-actions">{transitions[item.status].map((action) => <button className={action.value === "approved" ? "button primary small-button" : "button ghost small-button"} disabled={busy} key={action.value} onClick={() => move(action.value)}>{action.label}</button>)}{message && <span className="action-note">{message}</span>}</div>;
+}
+
+export function OutreachEditor({ item }: { item: Outreach }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    setBusy(true); setMessage("");
+    try {
+      await request(`/api/v1/outreach/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          subject: String(data.get("subject") ?? ""),
+          body: String(data.get("body") ?? ""),
+          rationale: String(data.get("rationale") ?? "")
+        })
+      });
+      setEditing(false);
+      setMessage("Saved.");
+      router.refresh();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save outreach."); }
+    finally { setBusy(false); }
+  }
+
+  if (editing) {
+    return (
+      <form className="content-editor" onSubmit={save}>
+        <label>Subject<input name="subject" defaultValue={item.subject} /></label>
+        <label>Message<textarea name="body" rows={6} defaultValue={item.body} required /></label>
+        <label>Selection rationale<textarea name="rationale" rows={2} defaultValue={item.rationale} /></label>
+        <div className="form-action-row"><button className="button primary" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button><button className="button ghost" type="button" onClick={() => setEditing(false)}>Cancel</button>{message && <span className="form-message">{message}</span>}</div>
+      </form>
+    );
+  }
+
+  return (
+    <div className="content-controls">
+      <button className="button ghost small-button" type="button" onClick={() => setEditing(true)}>Edit</button>
+      <DeleteButton url={`/api/v1/outreach/${item.id}`} confirmMessage="Delete this outreach draft? This cannot be undone." />
+      {message && <span className="action-note">{message}</span>}
+    </div>
+  );
 }

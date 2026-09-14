@@ -1,4 +1,4 @@
-import { ClipActions, ClipForm, MediaAssetForm, TranscriptForm } from "@/components/media-actions";
+import { ClipActions, ClipForm, MediaAssetActions, MediaAssetForm, TranscriptForm } from "@/components/media-actions";
 import { getMediaData, msLabel } from "@/lib/media-api";
 
 export default async function MediaPage() {
@@ -25,6 +25,7 @@ export default async function MediaPage() {
         return <article className="panel media-asset-card" key={asset.id}>
           <div className="panel-head"><div><span className="eyebrow">{asset.mediaType} · {asset.status}</span><h2>{asset.title}</h2></div><span className="pill neutral">{asset.sourcePath || "remote reference"}</span></div>
           {asset.sourceUrl && <a className="text-button" href={asset.sourceUrl} target="_blank">Open source ↗</a>}
+          <MediaAssetActions asset={asset} />
           <div className="media-transcript"><div className="panel-head"><div><span className="eyebrow">Transcript</span><h3>{asset.transcriptText ? "Imported" : "Not imported"}</h3></div></div>{asset.transcriptText && <p>{asset.transcriptText.length > 480 ? `${asset.transcriptText.slice(0, 480)}…` : asset.transcriptText}</p>}<TranscriptForm asset={asset} /></div>
           <div className="media-clip-create"><span className="eyebrow">New Clip Candidate</span><ClipForm asset={asset} /></div>
           <div className="media-clips-list">{clips.length === 0 ? <p className="empty-copy">No clip candidates for this recording.</p> : clips.map((clip) => <div className="media-clip-row" key={clip.id}><div><div className="media-clip-head"><strong>{clip.title}</strong><span className="score">{clip.score}</span></div><span className="muted">{msLabel(clip.startMs)}–{msLabel(clip.endMs)} · {clip.aspectRatio} · {clip.status}</span>{clip.rationale && <p>{clip.rationale}</p>}{clip.outputPath && <code>{clip.outputPath}</code>}</div><ClipActions clip={clip} /></div>)}</div>

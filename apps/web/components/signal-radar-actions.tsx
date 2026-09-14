@@ -125,7 +125,7 @@ export function SignalStatus({ id, status }: { id: string; status: Signal["statu
   async function change(next: string) {
     setBusy(true);
     try {
-      await api(`/api/v1/signals/${id}/status`, { method: "PATCH", body: JSON.stringify({ status: next }) });
+      await api(`/api/v1/signals/${id}`, { method: "PATCH", body: JSON.stringify({ status: next }) });
       router.refresh();
     } finally {
       setBusy(false);
@@ -139,6 +139,141 @@ export function SignalStatus({ id, status }: { id: string; status: Signal["statu
       <option value="ignored">Ignored</option>
       <option value="converted">Converted</option>
     </select>
+  );
+}
+
+export function SignalRowActions({ signal }: { signal: Signal }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const topics = String(form.get("topics") ?? "")
+      .split(",")
+      .map((item) => item.trim().toLowerCase().replaceAll(" ", "-"))
+      .filter(Boolean);
+    setBusy(true);
+    setMessage("");
+    try {
+      await api(`/api/v1/signals/${signal.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: String(form.get("title") ?? ""),
+          body: String(form.get("body") ?? ""),
+          topics,
+          relevanceScore: Number(form.get("relevanceScore") ?? 0)
+        })
+      });
+      setEditing(false);
+      setMessage("Saved.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save signal.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <form className="signal-editor" onSubmit={save}>
+        <label>Title<input name="title" defaultValue={signal.title} /></label>
+        <label>Evidence<textarea name="body" rows={3} defaultValue={signal.body} /></label>
+        <div className="form-grid-two">
+          <label>Topics<input name="topics" defaultValue={signal.topics.join(", ")} /></label>
+          <label>Relevance (0–100)<input name="relevanceScore" type="number" min="0" max="100" defaultValue={signal.relevanceScore ?? 0} /></label>
+        </div>
+        <div className="form-action-row">
+          <button className="button primary small-button" disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+          <button className="button ghost small-button" type="button" onClick={() => setEditing(false)}>Cancel</button>
+          {message && <span className="form-message">{message}</span>}
+        </div>
+      </form>
+    );
+  }
+
+  return (
+    <div className="signal-row-actions">
+      <button className="button ghost small-button" type="button" onClick={() => setEditing(true)}>Edit</button>
+      <DeleteButton
+        url={`${apiURL}/api/v1/signals/${signal.id}`}
+        confirmMessage="Delete this signal? This cannot be undone."
+      />
+      {message && !editing && <span className="action-note">{message}</span>}
+    </div>
+  );
+}
+
+export function PainPointEditor({ painPoint }: { painPoint: PainPoint }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setBusy(true);
+    setMessage("");
+    try {
+      await api(`/api/v1/pain-points/${painPoint.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: String(form.get("title") ?? ""),
+          summary: String(form.get("summary") ?? ""),
+          persona: String(form.get("persona") ?? ""),
+          severity: Number(form.get("severity") ?? 0),
+          status: String(form.get("status") ?? painPoint.status)
+        })
+      });
+      setEditing(false);
+      setMessage("Saved.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save pain point.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <form className="pain-point-editor" onSubmit={save}>
+        <label>Title<input name="title" defaultValue={painPoint.title} required /></label>
+        <label>Summary<textarea name="summary" rows={3} defaultValue={painPoint.summary} /></label>
+        <div className="form-grid-three">
+          <label>Persona<input name="persona" defaultValue={painPoint.persona} /></label>
+          <label>Severity (0–100)<input name="severity" type="number" min="0" max="100" defaultValue={painPoint.severity} /></label>
+          <label>Status
+            <select name="status" defaultValue={painPoint.status}>
+              <option value="active">Active</option>
+              <option value="watching">Watching</option>
+              <option value="addressed">Addressed</option>
+              <option value="archived">Archived</option>
+            </select>
+          </label>
+        </div>
+        <div className="form-action-row">
+          <button className="button primary small-button" disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+          <button className="button ghost small-button" type="button" onClick={() => setEditing(false)}>Cancel</button>
+          {message && <span className="form-message">{message}</span>}
+        </div>
+      </form>
+    );
+  }
+
+  return (
+    <div className="pain-point-row-actions">
+      <button className="button ghost small-button" type="button" onClick={() => setEditing(true)}>Edit</button>
+      <DeleteButton
+        url={`${apiURL}/api/v1/pain-points/${painPoint.id}`}
+        confirmMessage={`Delete pain point "${painPoint.title}"? This cannot be undone.`}
+      />
+      {message && !editing && <span className="action-note">{message}</span>}
+    </div>
   );
 }
 

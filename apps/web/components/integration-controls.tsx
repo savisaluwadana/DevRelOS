@@ -3,6 +3,7 @@
 import type { Connector } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { DeleteButton } from "@/components/delete-button";
 
 const apiURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
@@ -299,6 +300,79 @@ export function ConnectorForm() {
 
       <div className="form-action-row">
         <button className="button primary" disabled={saving}>{saving ? "Saving…" : "Add connector"}</button>
+        {message && <span className="form-message">{message}</span>}
+      </div>
+    </form>
+  );
+}
+
+export function ConnectorEditor({ connector }: { connector: Connector }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const configRaw = String(form.get("config") ?? "").trim();
+    setBusy(true);
+    setMessage("");
+    try {
+      let config: Record<string, unknown> | undefined;
+      if (configRaw) {
+        try {
+          config = JSON.parse(configRaw);
+        } catch {
+          throw new Error("Config must be valid JSON");
+        }
+      }
+      const response = await fetch(`${apiURL}/api/v1/connectors/${connector.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: String(form.get("name") ?? "").trim(),
+          enabled: form.get("enabled") === "on",
+          ...(config !== undefined ? { config } : {})
+        })
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({ error: "Unable to save connector" }));
+        throw new Error(payload.error ?? "Unable to save connector");
+      }
+      setEditing(false);
+      setMessage("Saved.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to save connector");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div className="connector-edit-toggle">
+        <button className="button ghost small-button" type="button" onClick={() => setEditing(true)}>Edit</button>
+        <DeleteButton
+          url={`${apiURL}/api/v1/connectors/${connector.id}`}
+          confirmMessage={`Delete connector "${connector.name}"? Its run history will be removed too.`}
+        />
+        {message && <span className="action-note">{message}</span>}
+      </div>
+    );
+  }
+
+  return (
+    <form className="connector-editor" onSubmit={save}>
+      <div className="form-grid-two">
+        <label>Name<input name="name" defaultValue={connector.name} required /></label>
+        <label className="checkbox-label"><input name="enabled" type="checkbox" defaultChecked={connector.enabled} /> Enabled</label>
+      </div>
+      <label>Config (JSON)<textarea name="config" rows={6} defaultValue={JSON.stringify(connector.config, null, 2)} /></label>
+      <div className="form-action-row">
+        <button className="button primary small-button" disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+        <button className="button ghost small-button" type="button" onClick={() => setEditing(false)}>Cancel</button>
         {message && <span className="form-message">{message}</span>}
       </div>
     </form>

@@ -1,5 +1,5 @@
 import { PainPointFeedbackAction } from "@/components/feedback-actions";
-import { EvidenceButton, RebuildPainPointsButton, SignalCaptureForm, SignalStatus } from "@/components/signal-radar-actions";
+import { EvidenceButton, PainPointEditor, RebuildPainPointsButton, SignalCaptureForm, SignalRowActions, SignalStatus } from "@/components/signal-radar-actions";
 import { PainPointWorkActions } from "@/components/work-actions";
 import { formatDateTime, getSignalRadarData } from "@/lib/api";
 
@@ -55,6 +55,7 @@ export default async function SignalsPage() {
             <EvidenceButton painPointId={painPoint.id} count={painPoint.evidenceCount} />
             <PainPointWorkActions painPointId={painPoint.id} />
             <PainPointFeedbackAction painPointId={painPoint.id} />
+            <PainPointEditor painPoint={painPoint} />
           </article>
         ))}
       </section>
@@ -63,9 +64,9 @@ export default async function SignalsPage() {
         <div className="panel-head"><div><span className="eyebrow">Evidence Inbox</span><h2>Developer signals</h2></div><span className="muted panel-note">Review noise before it influences clustering.</span></div>
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Signal</th><th>Source</th><th>Topics</th><th>Scores</th><th>Seen</th><th>Review</th></tr></thead>
+            <thead><tr><th>Signal</th><th>Source</th><th>Topics</th><th>Scores</th><th>Seen</th><th>Review</th><th>Actions</th></tr></thead>
             <tbody>
-              {data.signals.length === 0 ? <tr><td className="empty-cell" colSpan={6}>No signals captured yet.</td></tr> : data.signals.map((signal) => (
+              {data.signals.length === 0 ? <tr><td className="empty-cell" colSpan={7}>No signals captured yet.</td></tr> : data.signals.map((signal) => (
                 <tr key={signal.id}>
                   <td className="signal-copy-cell">
                     {signal.canonicalUrl ? <a href={signal.canonicalUrl} target="_blank"><strong>{signal.title || signal.body.slice(0, 110)}</strong></a> : <strong>{signal.title || signal.body.slice(0, 110)}</strong>}
@@ -76,6 +77,7 @@ export default async function SignalsPage() {
                   <td><strong>{signal.relevanceScore ?? "—"} rel.</strong><span className="subline">{signal.engagementScore} engagement</span></td>
                   <td>{formatDateTime(signal.occurredAt || signal.createdAt)}</td>
                   <td><SignalStatus id={signal.id} status={signal.status} /></td>
+                  <td><SignalRowActions signal={signal} /></td>
                 </tr>
               ))}
             </tbody>
