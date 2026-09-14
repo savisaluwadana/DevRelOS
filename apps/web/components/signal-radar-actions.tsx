@@ -2,7 +2,8 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Signal } from "@/lib/api";
+import type { PainPoint, Signal } from "@/lib/api";
+import { DeleteButton } from "@/components/delete-button";
 
 const apiURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 

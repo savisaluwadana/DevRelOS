@@ -3,7 +3,8 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Community, Talk } from "@/lib/api";
-import type { Contact, Outreach, Relationship } from "@/lib/outreach-api";
+import type { Contact, Outreach, Relationship, Touchpoint } from "@/lib/outreach-api";
+import { DeleteButton } from "@/components/delete-button";
 
 const apiURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 

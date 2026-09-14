@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { FeedbackItem, FeedbackStatus } from "@/lib/feedback-api";
+import { DeleteButton } from "@/components/delete-button";
 
 const apiURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
@@ -196,6 +197,11 @@ export function FeedbackEditor({ item }: { item: FeedbackItem }) {
       <button className="button ghost small-button" type="button" onClick={() => setEditing(true)}>Edit / link GitHub</button>
       {transitions[item.status].map((action) => <button className={action.value === "planned" || action.value === "in_progress" ? "button primary small-button" : "button ghost small-button"} disabled={busy} type="button" key={action.value} onClick={() => patch({ status: action.value })}>{action.label}</button>)}
       {item.status === "in_progress" && <form className="feedback-ship-form" onSubmit={ship}><textarea name="followUpNote" rows={3} defaultValue={item.followUpNote} placeholder="Required: what shipped and how should DevRel follow up?" required /><button className="button primary small-button" disabled={busy}>Mark shipped</button></form>}
+      <DeleteButton
+        url={`${apiURL}/api/v1/feedback/${item.id}`}
+        confirmMessage={`Delete "${item.title}"? This cannot be undone.`}
+        onDeleted={() => router.refresh()}
+      />
       {message && <span className="action-note">{message}</span>}
     </div>
   );
