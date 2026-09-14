@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Campaign } from "@/lib/campaign-shared";
+import { DeleteButton } from "@/components/delete-button";
 
 const apiBase = "/api/devrelos";
 
@@ -63,6 +64,77 @@ export function CreateCampaignForm() {
   );
 }
 
+function toDateInputValue(value?: string | null) {
+  if (!value) return "";
+  return value.slice(0, 10);
+}
+
+export function CampaignEditor({ campaign }: { campaign: Campaign }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setBusy(true); setMessage("");
+    try {
+      const startsAt = String(form.get("startsAt") ?? "");
+      const endsAt = String(form.get("endsAt") ?? "");
+      await request(`/api/v1/campaigns/${campaign.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: String(form.get("name") ?? "").trim(),
+          objective: String(form.get("objective") ?? "").trim(),
+          budgetUsd: Number(form.get("budgetUsd") ?? 0),
+          startsAt: startsAt ? new Date(startsAt).toISOString() : null,
+          endsAt: endsAt ? new Date(endsAt).toISOString() : null
+        })
+      });
+      setEditing(false);
+      setMessage("Saved.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save campaign.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div className="campaign-edit-toggle">
+        <button className="button ghost compact" type="button" onClick={() => setEditing(true)}>Edit campaign</button>
+        <DeleteButton
+          url={`/api/devrelos/api/v1/campaigns/${campaign.id}`}
+          confirmMessage={`Delete campaign "${campaign.name}"? Linked activity and metrics will be removed too.`}
+        />
+        {message && <span className="action-note">{message}</span>}
+      </div>
+    );
+  }
+
+  return (
+    <form className="campaign-editor" onSubmit={save}>
+      <div className="form-grid-two">
+        <label><span>Name</span><input name="name" defaultValue={campaign.name} required /></label>
+        <label><span>Budget USD</span><input name="budgetUsd" type="number" min="0" step="0.01" defaultValue={campaign.budgetUsd} /></label>
+      </div>
+      <label className="wide"><span>Objective</span><input name="objective" defaultValue={campaign.objective} /></label>
+      <div className="form-grid-two">
+        <label><span>Start</span><input name="startsAt" type="date" defaultValue={toDateInputValue(campaign.startsAt)} /></label>
+        <label><span>End</span><input name="endsAt" type="date" defaultValue={toDateInputValue(campaign.endsAt)} /></label>
+      </div>
+      <div className="campaign-form-actions">
+        <button className="button primary" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
+        <button className="button ghost" type="button" onClick={() => setEditing(false)}>Cancel</button>
+        {message && <span className="action-note">{message}</span>}
+      </div>
+    </form>
+  );
+}
+
 export function CampaignControls({ campaign }: { campaign: Campaign }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -78,7 +150,7 @@ export function CampaignControls({ campaign }: { campaign: Campaign }) {
   async function setStatus(status: Campaign["status"]) {
     setBusy(true); setMessage("");
     try {
-      await request(`/api/v1/campaigns/${campaign.id}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
+      await request(`/api/v1/campaigns/${campaign.id}`, { method: "PATCH", body: JSON.stringify({ status }) });
       router.refresh();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update campaign"); }
     finally { setBusy(false); }
