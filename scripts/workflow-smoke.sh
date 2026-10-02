@@ -154,7 +154,7 @@ LT=$(jqf "$(body "$R")" '[.linkedByType[]] | add')
 say "== 14. Measure responds to real outcomes =="
 BEFORE=$(jqf "$(get "/campaigns/$CAMP/report" | sed '$d')" '.outcomeScore')
 ccurl -o /dev/null -X PATCH -H 'Content-Type: application/json' -d '{"status":"done"}' "$API/work-items/$WORK"
-ccurl -o /dev/null -X PATCH -H 'Content-Type: application/json' -d '{"status":"accepted"}' "$API/submissions/$SUB/status"
+ccurl -o /dev/null -X PATCH -H 'Content-Type: application/json' -d '{"status":"accepted"}' "$API/submissions/$SUB"
 AFTER=$(jqf "$(get "/campaigns/$CAMP/report" | sed '$d')" '.outcomeScore')
 if [ "${AFTER:-0}" -gt "${BEFORE:-0}" ]; then
   ok "outcome score tracks real outcomes ($BEFORE -> $AFTER)"
