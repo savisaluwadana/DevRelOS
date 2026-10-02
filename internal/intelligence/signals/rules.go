@@ -22,10 +22,17 @@ import (
 // ever needed, this is the seam to move.
 const RulesEnvVar = "DEVRELOS_CLUSTERING_RULES"
 
+// DefaultMinEvidence is how many signals a cluster needs before it is reported
+// as a recurring pain point.
+const DefaultMinEvidence = 2
+
 // Ruleset is the topic and friction vocabulary used to cluster signals.
 type Ruleset struct {
 	Topics    []topicRule
 	Frictions []frictionRule
+	// MinEvidence is the number of signals required to report a cluster. A
+	// value below 1 falls back to DefaultMinEvidence.
+	MinEvidence int
 }
 
 // rulesFile is the on-disk shape. Field names are lowercase so the file reads
@@ -42,13 +49,15 @@ type rulesFile struct {
 		Label string   `json:"label"`
 		Terms []string `json:"terms"`
 	} `json:"frictions"`
+	MinEvidence *int `json:"minEvidence"`
 }
 
 // DefaultRuleset returns a copy of the built-in vocabularies.
 func DefaultRuleset() Ruleset {
 	return Ruleset{
-		Topics:    append([]topicRule(nil), defaultTopicRules...),
-		Frictions: append([]frictionRule(nil), defaultFrictionRules...),
+		Topics:      append([]topicRule(nil), defaultTopicRules...),
+		Frictions:   append([]frictionRule(nil), defaultFrictionRules...),
+		MinEvidence: DefaultMinEvidence,
 	}
 }
 
@@ -112,6 +121,13 @@ func ParseRuleset(raw []byte) (Ruleset, error) {
 			frictions = append(frictions, frictionRule{Key: key, Label: label, Terms: terms})
 		}
 		out.Frictions = frictions
+	}
+
+	if parsed.MinEvidence != nil {
+		if *parsed.MinEvidence < 1 {
+			return Ruleset{}, fmt.Errorf("clustering rules: minEvidence must be at least 1, got %d", *parsed.MinEvidence)
+		}
+		out.MinEvidence = *parsed.MinEvidence
 	}
 	return out, nil
 }

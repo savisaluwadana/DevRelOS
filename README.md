@@ -35,6 +35,9 @@ The repository contains a runnable self-hosted beta with:
 - Go API and background worker
 - Caddy-based HTTPS production profile, metrics, request IDs, backup/restore and full-stack CI smoke tests
 
+> All operator documentation is also available inside the running console under
+> **Guide**, bundled at build time so it works in the container.
+
 ## Product surfaces
 
 - **Command Center** — priorities, deadline risk, relationship risk, campaign impact and DevRel scorecard.
@@ -53,6 +56,7 @@ The repository contains a runnable self-hosted beta with:
 - **Integrations** — scheduled provider connectors, credentials and run telemetry.
 - **Access & Security** — users, roles, invitations, API keys, sessions and encrypted connector secrets.
 - **Automation & MCP** — authenticated agent/IDE domain tools without direct database access.
+- **Guide** — the operator documentation, rendered in the console.
 
 ## Repository layout
 

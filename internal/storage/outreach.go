@@ -47,7 +47,7 @@ func (s *Store) CreateContact(ctx context.Context, item domain.Contact) (domain.
 
 // UpdateContact applies a partial edit to a Contact. Role/Email/PublicProfileURL/
 // SourceURL are nullable columns, so an omitted (nil) field is left alone via
-// COALESCE(NULLIF($n,''),col) the same way CreateContact treats them; Name and
+// The update uses NULLIF inside COALESCE, matching CreateContact; Name and
 // DoNotContact are plain COALESCE($n,col) since they are not nullable columns.
 func (s *Store) UpdateContact(ctx context.Context, workspaceID, id string, update domain.ContactUpdate) (domain.Contact, error) {
 	var item domain.Contact

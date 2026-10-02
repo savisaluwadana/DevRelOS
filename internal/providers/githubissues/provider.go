@@ -94,7 +94,8 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 	if err := p.ValidateConfig(config); err != nil {
 		return connectors.FetchResult{}, err
 	}
-	repository := strings.Trim(strings.TrimSpace(config["repository"].(string)), "/")
+	rawRepository, _ := config["repository"].(string)
+	repository := strings.Trim(strings.TrimSpace(rawRepository), "/")
 	limit := request.PageLimit
 	if limit <= 0 {
 		limit = 50
@@ -194,6 +195,7 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 			},
 			Normalized: connectors.NormalizedRecord{
 				Kind:            "signal",
+				Shape:           connectors.SourceShapeReport,
 				Title:           item.Title,
 				Body:            item.Body,
 				AuthorHandle:    item.User.Login,

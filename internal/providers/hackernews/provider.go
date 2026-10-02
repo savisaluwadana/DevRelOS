@@ -151,6 +151,7 @@ func (p *Provider) Fetch(ctx context.Context, config map[string]any, request con
 			},
 			Normalized: connectors.NormalizedRecord{
 				Kind:            "signal",
+				Shape:           connectors.SourceShapeReport,
 				Title:           html.UnescapeString(story.Title),
 				Body:            body,
 				AuthorHandle:    story.By,

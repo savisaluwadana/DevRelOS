@@ -19,6 +19,28 @@ const (
 	CapabilityWebhooks           Capability = "webhooks"
 )
 
+// SourceShape describes whether a provider's records carry a developer
+// reporting a problem, or a publisher announcing something.
+//
+// Pain-point clustering only accepts reports as evidence. Announcement sources
+// stay fully useful for Signal Radar and content research; they just must not
+// manufacture developer pain, because friction vocabulary ("setup",
+// "configure", "complex", "manual") appears throughout ordinary technical
+// prose that is describing rather than complaining.
+type SourceShape string
+
+const (
+	// SourceShapeReport is content where the author has a problem: issues,
+	// discussions, forum questions, support tickets.
+	SourceShapeReport SourceShape = "report"
+	// SourceShapeAnnouncement is content that publishes news: blog feeds,
+	// release notes, changelogs, press releases.
+	SourceShapeAnnouncement SourceShape = "announcement"
+	// SourceShapeUnknown leaves the record eligible for clustering. It is the
+	// default so that manually entered signals and older rows behave as before.
+	SourceShapeUnknown SourceShape = "unknown"
+)
+
 type Policy struct {
 	RequestsPerMinute int     `json:"requestsPerMinute"`
 	DailyRequestLimit int     `json:"dailyRequestLimit"`
@@ -50,6 +72,8 @@ type NormalizedRecord struct {
 	EngagementScore  int      `json:"engagementScore"`
 	ActivityScore    *int     `json:"activityScore,omitempty"`
 	SpeakingFitScore *int     `json:"speakingFitScore,omitempty"`
+	// Shape is how pain-point clustering should treat this record.
+	Shape SourceShape
 }
 
 type RawRecord struct {

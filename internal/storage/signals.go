@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -31,7 +32,7 @@ func (s *Store) ListSignals(ctx context.Context, projectID string, filter Signal
 		SELECT id::text, project_id::text, COALESCE(source_record_id::text,''), provider,
 		       COALESCE(external_id,''), COALESCE(canonical_url,''), COALESCE(author_handle,''),
 		       COALESCE(author_name,''), title, body, occurred_at, topics, engagement_score,
-		       relevance_score, status, created_at, updated_at
+		       relevance_score, status, source_shape, created_at, updated_at
 		FROM signals
 		WHERE project_id=$1
 		  AND ($2='' OR status=$2)
@@ -52,7 +53,7 @@ func (s *Store) ListSignals(ctx context.Context, projectID string, filter Signal
 			&item.ID, &item.ProjectID, &item.SourceRecordID, &item.Provider, &item.ExternalID,
 			&item.CanonicalURL, &item.AuthorHandle, &item.AuthorName, &item.Title, &item.Body,
 			&item.OccurredAt, &item.Topics, &item.EngagementScore, &item.RelevanceScore,
-			&item.Status, &item.CreatedAt, &item.UpdatedAt,
+			&item.Status, &item.SourceShape, &item.CreatedAt, &item.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -72,11 +73,12 @@ func (s *Store) CreateSignal(ctx context.Context, item domain.Signal) (domain.Si
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO signals (
 			project_id, source_record_id, provider, external_id, canonical_url, author_handle,
-			author_name, title, body, occurred_at, topics, engagement_score, relevance_score, status
+			author_name, title, body, occurred_at, topics, engagement_score, relevance_score, status,
+			source_shape
 		)
 		VALUES (
 			$1, NULLIF($2,'')::uuid, $3, NULLIF($4,''), NULLIF($5,''), NULLIF($6,''),
-			NULLIF($7,''), $8, $9, $10, $11, $12, $13, $14
+			NULLIF($7,''), $8, $9, $10, $11, $12, $13, $14, COALESCE(NULLIF($15,''),'unknown')
 		)
 		ON CONFLICT (project_id, provider, external_id)
 		DO UPDATE SET canonical_url=EXCLUDED.canonical_url,
@@ -88,11 +90,12 @@ func (s *Store) CreateSignal(ctx context.Context, item domain.Signal) (domain.Si
 		              topics=EXCLUDED.topics,
 		              engagement_score=EXCLUDED.engagement_score,
 		              relevance_score=EXCLUDED.relevance_score,
+		              source_shape=EXCLUDED.source_shape,
 		              updated_at=now()
 		RETURNING id::text, created_at, updated_at`,
 		item.ProjectID, item.SourceRecordID, item.Provider, item.ExternalID, item.CanonicalURL,
 		item.AuthorHandle, item.AuthorName, item.Title, item.Body, item.OccurredAt, item.Topics,
-		item.EngagementScore, item.RelevanceScore, item.Status,
+		item.EngagementScore, item.RelevanceScore, item.Status, item.SourceShape,
 	).Scan(&item.ID, &item.CreatedAt, &item.UpdatedAt)
 	return item, err
 }
@@ -112,14 +115,14 @@ func (s *Store) UpdateSignal(ctx context.Context, projectID, id string, update d
 		RETURNING id::text, project_id::text, COALESCE(source_record_id::text,''), provider,
 		          COALESCE(external_id,''), COALESCE(canonical_url,''), COALESCE(author_handle,''),
 		          COALESCE(author_name,''), title, body, occurred_at, topics, engagement_score,
-		          relevance_score, status, created_at, updated_at`,
+		          relevance_score, status, source_shape, created_at, updated_at`,
 		id, projectID, update.Title, update.Body, update.Topics, update.EngagementScore,
 		update.RelevanceScore, update.Status,
 	).Scan(
 		&item.ID, &item.ProjectID, &item.SourceRecordID, &item.Provider, &item.ExternalID,
 		&item.CanonicalURL, &item.AuthorHandle, &item.AuthorName, &item.Title, &item.Body,
 		&item.OccurredAt, &item.Topics, &item.EngagementScore, &item.RelevanceScore,
-		&item.Status, &item.CreatedAt, &item.UpdatedAt,
+		&item.Status, &item.SourceShape, &item.CreatedAt, &item.UpdatedAt,
 	)
 	return item, err
 }
@@ -145,6 +148,9 @@ func (s *Store) DeleteSignal(ctx context.Context, projectID, id string) error {
 }
 
 func (s *Store) ListPainPoints(ctx context.Context, projectID, status string, limit, offset int) ([]domain.PainPoint, error) {
+	if strings.TrimSpace(status) == "" {
+		status = "active"
+	}
 	if limit <= 0 || limit > 200 {
 		limit = 100
 	}
@@ -155,7 +161,7 @@ func (s *Store) ListPainPoints(ctx context.Context, projectID, status string, li
 		SELECT id::text, project_id::text, key, title, summary, persona, severity, trend_score,
 		       evidence_count, topics, status, first_seen_at, last_seen_at, created_at, updated_at
 		FROM pain_points
-		WHERE project_id=$1 AND ($2='' OR status=$2)
+		WHERE project_id=$1 AND ($2='all' OR status=$2)
 		ORDER BY severity DESC, trend_score DESC, evidence_count DESC
 		LIMIT $3 OFFSET $4`, projectID, status, limit, offset)
 	if err != nil {
@@ -186,7 +192,7 @@ func (s *Store) ListPainPointEvidence(ctx context.Context, projectID, painPointI
 		SELECT s.id::text, s.project_id::text, COALESCE(s.source_record_id::text,''), s.provider,
 		       COALESCE(s.external_id,''), COALESCE(s.canonical_url,''), COALESCE(s.author_handle,''),
 		       COALESCE(s.author_name,''), s.title, s.body, s.occurred_at, s.topics,
-		       s.engagement_score, s.relevance_score, s.status, s.created_at, s.updated_at
+		       s.engagement_score, s.relevance_score, s.status, s.source_shape, s.created_at, s.updated_at
 		FROM pain_point_signals pps
 		JOIN pain_points pp ON pp.id=pps.pain_point_id
 		JOIN signals s ON s.id=pps.signal_id
@@ -205,7 +211,7 @@ func (s *Store) ListPainPointEvidence(ctx context.Context, projectID, painPointI
 			&item.ID, &item.ProjectID, &item.SourceRecordID, &item.Provider, &item.ExternalID,
 			&item.CanonicalURL, &item.AuthorHandle, &item.AuthorName, &item.Title, &item.Body,
 			&item.OccurredAt, &item.Topics, &item.EngagementScore, &item.RelevanceScore,
-			&item.Status, &item.CreatedAt, &item.UpdatedAt,
+			&item.Status, &item.SourceShape, &item.CreatedAt, &item.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

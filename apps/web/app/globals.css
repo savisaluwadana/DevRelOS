@@ -146,3 +146,14 @@ td strong { color: #f3f5f8; display: block; font-weight: 650; }
 .row-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .delete-action { display: inline-flex; align-items: center; gap: 6px; }
 
+
+.session-logout-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.session-logout-error {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--danger);
+}

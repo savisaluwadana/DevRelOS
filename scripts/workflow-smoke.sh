@@ -68,7 +68,7 @@ say "== 4. Submission pipeline =="
 R=$(post /submissions "{\"cfpId\":\"$CFP\",\"talkId\":\"$TALK\",\"notes\":\"drafting\",\"status\":\"draft\"}")
 step "create submission" "$R" 201
 SUB=$(jqf "$(body "$R")" .id)
-R=$(ccurl -w '\n%{http_code}' -X PATCH -H 'Content-Type: application/json' -d '{"status":"submitted"}' "$API/submissions/$SUB/status")
+R=$(ccurl -w '\n%{http_code}' -X PATCH -H 'Content-Type: application/json' -d '{"status":"submitted"}' "$API/submissions/$SUB")
 step "advance submission to submitted" "$R" 200
 
 say "== 5. Community & relationship =="
@@ -153,8 +153,8 @@ LT=$(jqf "$(body "$R")" '[.linkedByType[]] | add')
 
 say "== 14. Measure responds to real outcomes =="
 BEFORE=$(jqf "$(get "/campaigns/$CAMP/report" | sed '$d')" '.outcomeScore')
-ccurl -o /dev/null -X PATCH -H 'Content-Type: application/json' -d '{"status":"done"}' "$API/work-items/$WORK/status"
-ccurl -o /dev/null -X PATCH -H 'Content-Type: application/json' -d '{"status":"accepted"}' "$API/submissions/$SUB/status"
+ccurl -o /dev/null -X PATCH -H 'Content-Type: application/json' -d '{"status":"done"}' "$API/work-items/$WORK"
+ccurl -o /dev/null -X PATCH -H 'Content-Type: application/json' -d '{"status":"accepted"}' "$API/submissions/$SUB"
 AFTER=$(jqf "$(get "/campaigns/$CAMP/report" | sed '$d')" '.outcomeScore')
 if [ "${AFTER:-0}" -gt "${BEFORE:-0}" ]; then
   ok "outcome score tracks real outcomes ($BEFORE -> $AFTER)"

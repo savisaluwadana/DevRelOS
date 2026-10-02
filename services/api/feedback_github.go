@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,9 +9,16 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/savisaluwadana/DevRelOS/internal/providers/safehttp"
 )
 
 var githubSlugPart = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
+
+// githubSyncClient is shared so issue syncs reuse connections instead of
+// performing a fresh TLS handshake per request. The per-request context
+// deadline bounds each individual call.
+var githubSyncClient = &http.Client{Timeout: 10 * time.Second}
 
 func parseGitHubRepository(value string) (string, string, error) {
 	value = strings.TrimSpace(value)
@@ -105,8 +111,7 @@ func (a *api) syncFeedbackGitHubIssue(w http.ResponseWriter, r *http.Request) {
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "DevRelOS/feedback-sync")
 
-	client := &http.Client{Timeout: 6 * time.Second}
-	response, err := client.Do(req)
+	response, err := githubSyncClient.Do(req)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "GitHub issue lookup failed"})
 		return
@@ -136,7 +141,9 @@ func (a *api) syncFeedbackGitHubIssue(w http.ResponseWriter, r *http.Request) {
 			Name string `json:"name"`
 		} `json:"labels"`
 	}
-	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+	// Bound the read, matching the connector providers: an unbounded decode of a
+	// remote response is a memory risk regardless of how trusted the host is.
+	if err := safehttp.DecodeJSON(response.Body, &payload); err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "GitHub returned an unreadable issue payload"})
 		return
 	}

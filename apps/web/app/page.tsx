@@ -1,6 +1,7 @@
 import { formatDate, getDashboard, locationLabel } from "@/lib/api";
 import { getCampaignData, getRelationshipRadar } from "@/lib/campaign-api";
 import { renderTimestamp } from "@/lib/clock";
+import Link from "next/link";
 
 function Metric({ label, value, note }: { label: string; value: number | string; note: string }) {
   return (
@@ -36,8 +37,9 @@ export default async function Home() {
           <p>Prioritize opportunities, relationships, campaigns and deadlines—and connect the work back to outcomes.</p>
         </div>
         <div className="topbar-actions">
-          <a className="button ghost" href="/campaigns">Campaigns</a>
-          <a className="button primary" href="/work">+ New activity</a>
+          <Link className="button ghost" href="/guide">Guide</Link>
+          <Link className="button ghost" href="/campaigns">Campaigns</Link>
+          <Link className="button primary" href="/work">+ New activity</Link>
         </div>
       </header>
 

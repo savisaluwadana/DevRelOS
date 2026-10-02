@@ -200,10 +200,12 @@ func (s *Store) UpdateScopedSubmission(ctx context.Context, projectID, id string
 		    submitted_at=COALESCE($8, s.submitted_at),
 		    decision_at=COALESCE($9, s.decision_at),
 		    updated_at=now()
-		FROM cfps c
-		JOIN events e ON e.id=c.event_id
-		JOIN talks t ON t.id=s.talk_id
-		WHERE s.id=$1 AND s.cfp_id=c.id AND e.project_id=$2
+		FROM cfps c, events e, talks t
+		WHERE s.id=$1
+		  AND s.cfp_id=c.id
+		  AND c.event_id=e.id
+		  AND t.id=s.talk_id
+		  AND e.project_id=$2
 		RETURNING s.id::text, s.cfp_id::text, s.talk_id::text, e.name, t.title,
 		          COALESCE(s.title_override,''), COALESCE(s.abstract_override,''), s.status,
 		          s.submitted_at, s.decision_at, s.notes, s.fit_score, s.created_at, s.updated_at`,

@@ -200,14 +200,39 @@ func (s *Store) AcceptInvitation(ctx context.Context, tokenHash, displayName str
 		user.DisplayName = strings.TrimSpace(displayName)
 		_, _ = tx.Exec(ctx, `UPDATE users SET display_name=$2, updated_at=now() WHERE id=$1`, user.ID, user.DisplayName)
 	}
+	// Accepting an invitation may raise an existing member's role but must never
+	// lower it.
+	//
+	// Creating an invitation requires admin, and granting "owner" additionally
+	// requires the actor to be an owner - but the unconditional upsert this
+	// replaces ignored the hierarchy on the way down. An admin could invite an
+	// existing owner's email as "viewer", accept it themselves (the accept
+	// endpoint needs no authentication and the token is returned to the
+	// creator), and silently demote that owner.
 	_, err = tx.Exec(ctx, `
 		INSERT INTO workspace_memberships (workspace_id, user_id, role)
 		VALUES ($1,$2,$3)
-		ON CONFLICT (workspace_id,user_id) DO UPDATE SET role=EXCLUDED.role, updated_at=now()`,
+		ON CONFLICT (workspace_id,user_id) DO UPDATE
+		SET role = CASE
+		             WHEN array_position(ARRAY['viewer','editor','admin','owner'], EXCLUDED.role)
+		                > array_position(ARRAY['viewer','editor','admin','owner'], workspace_memberships.role)
+		             THEN EXCLUDED.role
+		             ELSE workspace_memberships.role
+		           END,
+		    updated_at = now()`,
 		invitation.WorkspaceID, user.ID, invitation.Role)
 	if err != nil {
 		return user, invitation, err
 	}
+	// Report the role the member actually holds now, not the invited one: an
+	// invitation that did not raise the role must not make the session response
+	// advertise a role the user does not have.
+	if err := tx.QueryRow(ctx,
+		`SELECT role FROM workspace_memberships WHERE workspace_id=$1 AND user_id=$2`,
+		invitation.WorkspaceID, user.ID).Scan(&invitation.Role); err != nil {
+		return user, invitation, err
+	}
+
 	now := time.Now().UTC()
 	_, err = tx.Exec(ctx, `UPDATE workspace_invitations SET accepted_at=$2 WHERE id=$1`, invitation.ID, now)
 	if err != nil {

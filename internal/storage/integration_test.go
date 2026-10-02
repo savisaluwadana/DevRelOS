@@ -553,3 +553,159 @@ func TestListPainPointsAppliesOffset(t *testing.T) {
 		t.Fatalf("offset past the end returned %d rows, want 0", len(beyond))
 	}
 }
+
+// Accepting an invitation must never lower an existing member's role.
+//
+// Creating an invitation requires admin, and granting "owner" additionally
+// requires being an owner, but the membership upsert used to apply the invited
+// role unconditionally. An admin could invite an existing owner's email as
+// "viewer", accept it themselves (the accept endpoint is unauthenticated and
+// the token is handed to whoever created the invitation), and demote the owner.
+func TestAcceptInvitationNeverLowersAnExistingRole(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+
+	var workspaceID string
+	if err := store.pool.QueryRow(ctx,
+		`INSERT INTO workspaces (slug, name) VALUES ($1,$1) RETURNING id::text`,
+		"invite-"+t.Name()).Scan(&workspaceID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = store.pool.Exec(context.Background(), `DELETE FROM workspaces WHERE id=$1`, workspaceID)
+	})
+
+	var ownerID string
+	if err := store.pool.QueryRow(ctx,
+		`INSERT INTO users (email, display_name, status) VALUES ($1,'Owner','active') RETURNING id::text`,
+		"owner-"+t.Name()+"@example.invalid").Scan(&ownerID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = store.pool.Exec(context.Background(), `DELETE FROM users WHERE id=$1`, ownerID)
+	})
+	var ownerEmail string
+	if err := store.pool.QueryRow(ctx, `SELECT email FROM users WHERE id=$1`, ownerID).Scan(&ownerEmail); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.pool.Exec(ctx,
+		`INSERT INTO workspace_memberships (workspace_id, user_id, role) VALUES ($1,$2,'owner')`,
+		workspaceID, ownerID); err != nil {
+		t.Fatal(err)
+	}
+
+	invite := func(role, tokenHash string) {
+		t.Helper()
+		if _, err := store.pool.Exec(ctx,
+			`INSERT INTO workspace_invitations (workspace_id, email, role, token_hash, expires_at)
+			 VALUES ($1,$2,$3,$4, now() + interval '1 day')`,
+			workspaceID, ownerEmail, role, tokenHash); err != nil {
+			t.Fatal(err)
+		}
+	}
+	roleNow := func() string {
+		t.Helper()
+		var role string
+		if err := store.pool.QueryRow(ctx,
+			`SELECT role FROM workspace_memberships WHERE workspace_id=$1 AND user_id=$2`,
+			workspaceID, ownerID).Scan(&role); err != nil {
+			t.Fatal(err)
+		}
+		return role
+	}
+
+	// A viewer invitation for the existing owner must not demote them.
+	invite("viewer", "hash-viewer-"+t.Name())
+	_, accepted, err := store.AcceptInvitation(ctx, "hash-viewer-"+t.Name(), "Owner")
+	if err != nil {
+		t.Fatalf("accept: %v", err)
+	}
+	if got := roleNow(); got != "owner" {
+		t.Fatalf("owner was demoted to %q by a viewer invitation", got)
+	}
+	// The response must advertise the role actually held, not the invited one.
+	if accepted.Role != "owner" {
+		t.Fatalf("accept reported role %q, want the role actually held (owner)", accepted.Role)
+	}
+
+	// An admin invitation must also not demote an owner.
+	invite("admin", "hash-admin-"+t.Name())
+	if _, _, err := store.AcceptInvitation(ctx, "hash-admin-"+t.Name(), "Owner"); err != nil {
+		t.Fatalf("accept: %v", err)
+	}
+	if got := roleNow(); got != "owner" {
+		t.Fatalf("owner was demoted to %q by an admin invitation", got)
+	}
+}
+
+func TestAcceptInvitationStillRaisesRoleAndIsSingleUse(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+
+	var workspaceID string
+	if err := store.pool.QueryRow(ctx,
+		`INSERT INTO workspaces (slug, name) VALUES ($1,$1) RETURNING id::text`,
+		"raise-"+t.Name()).Scan(&workspaceID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = store.pool.Exec(context.Background(), `DELETE FROM workspaces WHERE id=$1`, workspaceID)
+	})
+	email := "viewer-" + t.Name() + "@example.invalid"
+	t.Cleanup(func() {
+		_, _ = store.pool.Exec(context.Background(), `DELETE FROM users WHERE lower(email)=lower($1)`, email)
+	})
+
+	mkInvite := func(role, hash string) {
+		t.Helper()
+		if _, err := store.pool.Exec(ctx,
+			`INSERT INTO workspace_invitations (workspace_id, email, role, token_hash, expires_at)
+			 VALUES ($1,$2,$3,$4, now() + interval '1 day')`,
+			workspaceID, email, role, hash); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// First acceptance creates the user and the membership.
+	mkInvite("viewer", "h1-"+t.Name())
+	user, invitation, err := store.AcceptInvitation(ctx, "h1-"+t.Name(), "Newcomer")
+	if err != nil {
+		t.Fatalf("first accept: %v", err)
+	}
+	if invitation.Role != "viewer" {
+		t.Fatalf("role = %q, want viewer", invitation.Role)
+	}
+
+	// Re-using the same token must fail: it is single use.
+	if _, _, err := store.AcceptInvitation(ctx, "h1-"+t.Name(), "Newcomer"); err == nil {
+		t.Fatal("an already-accepted invitation was accepted again")
+	}
+
+	// A genuine promotion still applies.
+	mkInvite("editor", "h2-"+t.Name())
+	if _, promoted, err := store.AcceptInvitation(ctx, "h2-"+t.Name(), "Newcomer"); err != nil {
+		t.Fatalf("promotion accept: %v", err)
+	} else if promoted.Role != "editor" {
+		t.Fatalf("promotion reported %q, want editor", promoted.Role)
+	}
+	var role string
+	if err := store.pool.QueryRow(ctx,
+		`SELECT role FROM workspace_memberships WHERE workspace_id=$1 AND user_id=$2`,
+		workspaceID, user.ID).Scan(&role); err != nil {
+		t.Fatal(err)
+	}
+	if role != "editor" {
+		t.Fatalf("membership role = %q, want editor after promotion", role)
+	}
+
+	// An expired invitation must not be accepted.
+	if _, err := store.pool.Exec(ctx,
+		`INSERT INTO workspace_invitations (workspace_id, email, role, token_hash, expires_at)
+		 VALUES ($1,$2,'admin',$3, now() - interval '1 hour')`,
+		workspaceID, email, "h3-"+t.Name()); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := store.AcceptInvitation(ctx, "h3-"+t.Name(), "Newcomer"); err == nil {
+		t.Fatal("an expired invitation was accepted")
+	}
+}
