@@ -71,18 +71,71 @@ func (s *Store) GetMediaAsset(ctx context.Context, projectID, id string) (mediad
 	return scanMediaAsset(row.Scan)
 }
 
-func (s *Store) UpdateMediaTranscript(ctx context.Context, projectID, id string, update mediadomain.TranscriptUpdate) (mediadomain.Asset, error) {
-	segments, err := json.Marshal(update.Segments)
-	if err != nil {
-		return mediadomain.Asset{}, err
+// UpdateMediaAsset applies a partial edit to a media Asset. It folds in what
+// used to be the narrower transcript-only update: when a caller sets the
+// transcript text or segments without also setting Status, the asset is
+// moved to 'segmented' automatically, matching the old endpoint's behavior.
+func (s *Store) UpdateMediaAsset(ctx context.Context, projectID, id string, update mediadomain.AssetUpdate) (mediadomain.Asset, error) {
+	var segments any
+	if update.TranscriptSegments != nil {
+		marshaled, err := json.Marshal(*update.TranscriptSegments)
+		if err != nil {
+			return mediadomain.Asset{}, err
+		}
+		segments = marshaled
+	}
+	status := update.Status
+	if status == nil && (update.TranscriptText != nil || update.TranscriptSegments != nil) {
+		segmented := "segmented"
+		status = &segmented
 	}
 	row := s.pool.QueryRow(ctx, `
-		UPDATE media_assets SET transcript_text=$3, transcript_language=$4, transcript_segments=$5::jsonb,
-		 status='segmented', updated_at=now() WHERE project_id=$1 AND id=$2
+		UPDATE media_assets
+		SET title=COALESCE($3,title),
+		    source_path=COALESCE($4,source_path),
+		    source_url=COALESCE($5,source_url),
+		    media_type=COALESCE($6,media_type),
+		    duration_ms=COALESCE($7,duration_ms),
+		    status=COALESCE($8,status),
+		    transcript_text=COALESCE($9,transcript_text),
+		    transcript_language=COALESCE($10,transcript_language),
+		    transcript_segments=COALESCE($11::jsonb,transcript_segments),
+		    updated_at=now()
+		WHERE project_id=$1 AND id=$2
 		RETURNING id::text, project_id::text, COALESCE(content_asset_id::text,''), title, source_path, source_url,
 		 media_type, duration_ms, status, transcript_text, transcript_language, transcript_segments, metadata, created_at, updated_at`,
-		projectID, id, update.Text, update.Language, segments)
+		projectID, id, update.Title, update.SourcePath, update.SourceURL, update.MediaType, update.DurationMS,
+		status, update.TranscriptText, update.TranscriptLanguage, segments)
 	return scanMediaAsset(row.Scan)
+}
+
+// DeleteMediaAsset removes a media asset. It is blocked if any media clip
+// still points at it (a real FK, but pre-checked here for a clean 409
+// instead of a raw constraint violation) or if it is linked into a
+// campaign via the polymorphic campaign_items table. media_jobs rows are
+// logs that cascade automatically and do not block deletion.
+func (s *Store) DeleteMediaAsset(ctx context.Context, projectID, id string) error {
+	var clipCount int
+	if err := s.pool.QueryRow(ctx, `
+		SELECT count(*) FROM media_clips WHERE media_asset_id=$1 AND project_id=$2`, id, projectID).Scan(&clipCount); err != nil {
+		return err
+	}
+	if clipCount > 0 {
+		return dependentsErr("cannot delete: this media asset still has clips attached")
+	}
+	if referenced, err := s.campaignItemReferences(ctx, "media_asset", id); err != nil {
+		return err
+	} else if referenced {
+		return dependentsErr("cannot delete: this media asset is linked to a campaign")
+	}
+	cmd, err := s.pool.Exec(ctx, `DELETE FROM media_assets WHERE id=$1 AND project_id=$2`, id, projectID)
+	if err != nil {
+		return err
+	}
+	if cmd.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
 }
 
 func (s *Store) ListMediaClips(ctx context.Context, projectID, mediaAssetID string, page Page) ([]mediadomain.Clip, error) {
@@ -161,8 +214,44 @@ func (s *Store) CreateMediaClip(ctx context.Context, item mediadomain.Clip) (med
 	return item, err
 }
 
-func (s *Store) UpdateMediaClipStatus(ctx context.Context, projectID, id, status string) error {
-	cmd, err := s.pool.Exec(ctx, `UPDATE media_clips SET status=$3,updated_at=now() WHERE project_id=$1 AND id=$2`, projectID, id, status)
+// UpdateMediaClip applies a partial edit to a media Clip, including what
+// used to be the narrower status-only update.
+func (s *Store) UpdateMediaClip(ctx context.Context, projectID, id string, update mediadomain.ClipUpdate) (mediadomain.Clip, error) {
+	var item mediadomain.Clip
+	var metadata []byte
+	err := s.pool.QueryRow(ctx, `
+		UPDATE media_clips
+		SET title=COALESCE($3,title),
+		    start_ms=COALESCE($4,start_ms),
+		    end_ms=COALESCE($5,end_ms),
+		    aspect_ratio=COALESCE($6,aspect_ratio),
+		    score=COALESCE($7,score),
+		    rationale=COALESCE($8,rationale),
+		    caption_text=COALESCE($9,caption_text),
+		    status=COALESCE($10,status),
+		    updated_at=now()
+		WHERE project_id=$1 AND id=$2
+		RETURNING id::text, project_id::text, media_asset_id::text, COALESCE(content_asset_id::text,''), title,
+		 start_ms,end_ms,aspect_ratio,score,rationale,caption_text,status,output_path,metadata,created_at,updated_at`,
+		projectID, id, update.Title, update.StartMS, update.EndMS, update.AspectRatio, update.Score,
+		update.Rationale, update.CaptionText, update.Status,
+	).Scan(&item.ID, &item.ProjectID, &item.MediaAssetID, &item.ContentAssetID, &item.Title, &item.StartMS, &item.EndMS,
+		&item.AspectRatio, &item.Score, &item.Rationale, &item.CaptionText, &item.Status, &item.OutputPath, &metadata,
+		&item.CreatedAt, &item.UpdatedAt)
+	if err != nil {
+		return item, err
+	}
+	item.Metadata = map[string]any{}
+	_ = json.Unmarshal(metadata, &item.Metadata)
+	return item, nil
+}
+
+// DeleteMediaClip removes a media clip. media_clips is not itself a valid
+// campaign_items.entity_type (only media_asset is), so no polymorphic
+// reference check is needed here; media_jobs rows for the clip are logs
+// that cascade automatically.
+func (s *Store) DeleteMediaClip(ctx context.Context, projectID, id string) error {
+	cmd, err := s.pool.Exec(ctx, `DELETE FROM media_clips WHERE id=$1 AND project_id=$2`, id, projectID)
 	if err != nil {
 		return err
 	}

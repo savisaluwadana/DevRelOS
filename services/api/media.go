@@ -10,10 +10,12 @@ import (
 func (a *api) registerMediaRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/media-assets", a.listMediaAssets)
 	mux.HandleFunc("POST /api/v1/media-assets", a.createMediaAsset)
-	mux.HandleFunc("PATCH /api/v1/media-assets/{id}/transcript", a.updateMediaTranscript)
+	mux.HandleFunc("PATCH /api/v1/media-assets/{id}", a.updateMediaAsset)
+	mux.HandleFunc("DELETE /api/v1/media-assets/{id}", a.deleteMediaAsset)
 	mux.HandleFunc("GET /api/v1/media-clips", a.listMediaClips)
 	mux.HandleFunc("POST /api/v1/media-clips", a.createMediaClip)
-	mux.HandleFunc("PATCH /api/v1/media-clips/{id}/status", a.updateMediaClipStatus)
+	mux.HandleFunc("PATCH /api/v1/media-clips/{id}", a.updateMediaClip)
+	mux.HandleFunc("DELETE /api/v1/media-clips/{id}", a.deleteMediaClip)
 	mux.HandleFunc("POST /api/v1/media-clips/{id}/render", a.queueMediaRender)
 }
 
@@ -66,20 +68,22 @@ func (a *api) createMediaAsset(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, created)
 }
 
-func (a *api) updateMediaTranscript(w http.ResponseWriter, r *http.Request) {
-	var input mediadomain.TranscriptUpdate
+func (a *api) updateMediaAsset(w http.ResponseWriter, r *http.Request) {
+	var input mediadomain.AssetUpdate
 	if err := decodeJSON(r, &input); err != nil {
 		writeBadRequest(w, err.Error())
 		return
 	}
-	if strings.TrimSpace(input.Text) == "" && len(input.Segments) == 0 {
-		writeBadRequest(w, "transcript text or segments are required")
+	if input.MediaType != nil && *input.MediaType != "video" && *input.MediaType != "audio" {
+		writeBadRequest(w, "invalid mediaType")
 		return
 	}
-	for _, segment := range input.Segments {
-		if segment.StartMS < 0 || segment.EndMS <= segment.StartMS || strings.TrimSpace(segment.Text) == "" {
-			writeBadRequest(w, "invalid transcript segment")
-			return
+	if input.TranscriptSegments != nil {
+		for _, segment := range *input.TranscriptSegments {
+			if segment.StartMS < 0 || segment.EndMS <= segment.StartMS || strings.TrimSpace(segment.Text) == "" {
+				writeBadRequest(w, "invalid transcript segment")
+				return
+			}
 		}
 	}
 	projectID, err := a.projectID(r)
@@ -87,12 +91,25 @@ func (a *api) updateMediaTranscript(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	updated, err := a.store.UpdateMediaTranscript(r.Context(), projectID, r.PathValue("id"), input)
+	updated, err := a.store.UpdateMediaAsset(r.Context(), projectID, r.PathValue("id"), input)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *api) deleteMediaAsset(w http.ResponseWriter, r *http.Request) {
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.DeleteMediaAsset(r.Context(), projectID, r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *api) listMediaClips(w http.ResponseWriter, r *http.Request) {
@@ -145,17 +162,31 @@ func (a *api) createMediaClip(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, created)
 }
 
-func (a *api) updateMediaClipStatus(w http.ResponseWriter, r *http.Request) {
-	var input struct {
-		Status string `json:"status"`
-	}
+func (a *api) updateMediaClip(w http.ResponseWriter, r *http.Request) {
+	var input mediadomain.ClipUpdate
 	if err := decodeJSON(r, &input); err != nil {
 		writeBadRequest(w, err.Error())
 		return
 	}
-	allowed := map[string]bool{"candidate": true, "approved": true, "rejected": true}
-	if !allowed[input.Status] {
+	allowedStatus := map[string]bool{"candidate": true, "approved": true, "rejected": true}
+	if input.Status != nil && !allowedStatus[*input.Status] {
 		writeBadRequest(w, "status must be candidate, approved or rejected")
+		return
+	}
+	if input.StartMS != nil && *input.StartMS < 0 {
+		writeBadRequest(w, "startMs must not be negative")
+		return
+	}
+	if input.EndMS != nil && input.StartMS != nil && *input.EndMS <= *input.StartMS {
+		writeBadRequest(w, "endMs must be greater than startMs")
+		return
+	}
+	if input.Score != nil && (*input.Score < 0 || *input.Score > 100) {
+		writeBadRequest(w, "score must be between 0 and 100")
+		return
+	}
+	if input.AspectRatio != nil && *input.AspectRatio != "9:16" && *input.AspectRatio != "1:1" && *input.AspectRatio != "16:9" {
+		writeBadRequest(w, "invalid aspectRatio")
 		return
 	}
 	projectID, err := a.projectID(r)
@@ -163,11 +194,25 @@ func (a *api) updateMediaClipStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	if err := a.store.UpdateMediaClipStatus(r.Context(), projectID, r.PathValue("id"), input.Status); err != nil {
+	updated, err := a.store.UpdateMediaClip(r.Context(), projectID, r.PathValue("id"), input)
+	if err != nil {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": input.Status})
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *api) deleteMediaClip(w http.ResponseWriter, r *http.Request) {
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.DeleteMediaClip(r.Context(), projectID, r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *api) queueMediaRender(w http.ResponseWriter, r *http.Request) {
@@ -194,6 +239,7 @@ func (a *api) queueMediaRender(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	_ = a.store.UpdateMediaClipStatus(r.Context(), projectID, r.PathValue("id"), "queued")
+	queued := "queued"
+	_, _ = a.store.UpdateMediaClip(r.Context(), projectID, r.PathValue("id"), mediadomain.ClipUpdate{Status: &queued})
 	writeJSON(w, http.StatusAccepted, job)
 }

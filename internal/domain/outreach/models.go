@@ -61,6 +61,48 @@ type Outreach struct {
 	UpdatedAt     time.Time  `json:"updatedAt"`
 }
 
+// ContactUpdate carries partial edits to a Contact; nil fields are left
+// unchanged.
+type ContactUpdate struct {
+	Name             *string `json:"name,omitempty"`
+	Role             *string `json:"role,omitempty"`
+	Email            *string `json:"email,omitempty"`
+	PublicProfileURL *string `json:"publicProfileUrl,omitempty"`
+	SourceURL        *string `json:"sourceUrl,omitempty"`
+	DoNotContact     *bool   `json:"doNotContact,omitempty"`
+}
+
+// RelationshipUpdate carries partial edits to a Relationship; nil fields are
+// left unchanged. CommunityID/ContactID are identity fields set at creation
+// and are not editable afterwards.
+type RelationshipUpdate struct {
+	Stage          *string    `json:"stage,omitempty"`
+	Strength       *int       `json:"strength,omitempty"`
+	NextFollowUpAt *time.Time `json:"nextFollowUpAt,omitempty"`
+	Notes          *string    `json:"notes,omitempty"`
+}
+
+// TouchpointUpdate carries partial edits to a Touchpoint. Touchpoints are an
+// append-only activity log, not a fully mutable record: only Summary and
+// OccurredAt can be corrected after the fact (e.g. a typo or a wrong
+// timestamp) — Channel, Direction and RelationshipID stay fixed once logged.
+type TouchpointUpdate struct {
+	Summary    *string    `json:"summary,omitempty"`
+	OccurredAt *time.Time `json:"occurredAt,omitempty"`
+}
+
+// OutreachUpdate carries partial edits to an Outreach; nil fields are left
+// unchanged. Status keeps flowing through the same validated transition path
+// (validOutreachTransition plus the SMTP delivery gate) the old
+// status-only endpoint used — see updateOutreach in services/api/outreach.go.
+// Channel is not editable after creation.
+type OutreachUpdate struct {
+	Subject   *string `json:"subject,omitempty"`
+	Body      *string `json:"body,omitempty"`
+	Rationale *string `json:"rationale,omitempty"`
+	Status    *string `json:"status,omitempty"`
+}
+
 type Delivery struct {
 	ID             string     `json:"id"`
 	OutreachID     string     `json:"outreachId"`

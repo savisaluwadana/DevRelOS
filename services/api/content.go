@@ -13,6 +13,7 @@ func (a *api) registerContentRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/content-assets", a.listContentAssets)
 	mux.HandleFunc("POST /api/v1/content-assets", a.createContentAsset)
 	mux.HandleFunc("PATCH /api/v1/content-assets/{id}", a.updateContentAsset)
+	mux.HandleFunc("DELETE /api/v1/content-assets/{id}", a.deleteContentAsset)
 	mux.HandleFunc("POST /api/v1/work-items/{id}/content-assets", a.createContentAssetFromWorkItem)
 }
 
@@ -103,6 +104,19 @@ func (a *api) updateContentAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *api) deleteContentAsset(w http.ResponseWriter, r *http.Request) {
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.DeleteContentAsset(r.Context(), projectID, r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *api) createContentAssetFromWorkItem(w http.ResponseWriter, r *http.Request) {

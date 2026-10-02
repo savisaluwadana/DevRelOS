@@ -1,4 +1,4 @@
-import { ConnectorForm, ConnectorScheduleControl, RunConnectorButton } from "@/components/integration-controls";
+import { ConnectorEditor, ConnectorForm, ConnectorScheduleControl, RunConnectorButton } from "@/components/integration-controls";
 import { formatDate, formatDateTime, getIntegrationData } from "@/lib/api";
 import Link from "next/link";
 
@@ -63,6 +63,7 @@ export default async function IntegrationsPage() {
                     <RunConnectorButton connector={connector} />
                     <span>{runs.length} recorded run{runs.length === 1 ? "" : "s"}</span>
                   </div>
+                  <ConnectorEditor connector={connector} />
                 </article>
               );
             })}

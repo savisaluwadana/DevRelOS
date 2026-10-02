@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { WorkItem, WorkItemKind, WorkItemStatus } from "@/lib/work-shared";
 import { workKindLabels } from "@/lib/work-shared";
+import { DeleteButton } from "@/components/delete-button";
 
 const apiURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
@@ -87,13 +88,14 @@ const transitions: Record<WorkItemStatus, { label: string; value: WorkItemStatus
 export function WorkItemActions({ item }: { item: WorkItem }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [message, setMessage] = useState("");
 
   async function move(status: WorkItemStatus) {
     setBusy(true);
     setMessage("");
     try {
-      await request(`/api/v1/work-items/${item.id}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
+      await request(`/api/v1/work-items/${item.id}`, { method: "PATCH", body: JSON.stringify({ status }) });
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not update action.");
@@ -102,9 +104,57 @@ export function WorkItemActions({ item }: { item: WorkItem }) {
     }
   }
 
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    setBusy(true);
+    setMessage("");
+    try {
+      const due = String(data.get("dueAt") ?? "");
+      await request(`/api/v1/work-items/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: String(data.get("title") ?? ""),
+          description: String(data.get("description") ?? ""),
+          priority: Number(data.get("priority") ?? item.priority),
+          owner: String(data.get("owner") ?? ""),
+          dueAt: due ? new Date(due).toISOString() : undefined
+        })
+      });
+      setEditing(false);
+      setMessage("Saved.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save action.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <form className="work-editor" onSubmit={save}>
+        <label>Title<input name="title" defaultValue={item.title} required /></label>
+        <label>Description<textarea name="description" rows={3} defaultValue={item.description} /></label>
+        <div className="form-grid-three">
+          <label>Priority<input name="priority" type="number" min="0" max="100" defaultValue={item.priority} /></label>
+          <label>Owner<input name="owner" defaultValue={item.owner} /></label>
+          <label>Due date<input name="dueAt" type="datetime-local" defaultValue={item.dueAt ? item.dueAt.slice(0, 16) : ""} /></label>
+        </div>
+        <div className="form-action-row"><button className="button primary small-button" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button><button className="button ghost small-button" type="button" onClick={() => setEditing(false)}>Cancel</button>{message && <span className="form-message">{message}</span>}</div>
+      </form>
+    );
+  }
+
   return (
     <div className="work-actions">
+      <button type="button" className="button ghost small-button" disabled={busy} onClick={() => setEditing(true)}>Edit</button>
       {transitions[item.status].map((action) => <button type="button" className={action.value === "done" || action.value === "in_progress" ? "button primary small-button" : "button ghost small-button"} disabled={busy} key={action.value} onClick={() => move(action.value)}>{action.label}</button>)}
+      <DeleteButton
+        url={`${apiURL}/api/v1/work-items/${item.id}`}
+        confirmMessage="Delete this action from the queue? This cannot be undone."
+        onDeleted={() => router.refresh()}
+      />
       {message && <span className="action-note">{message}</span>}
     </div>
   );

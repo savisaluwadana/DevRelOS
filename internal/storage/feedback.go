@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	feedbackdomain "github.com/savisaluwadana/DevRelOS/internal/domain/feedback"
 )
 
@@ -134,6 +135,22 @@ func (s *Store) UpdateFeedback(ctx context.Context, projectID, id string, update
 		update.GitHubRepository, update.GitHubIssueNumber, update.GitHubIssueURL,
 		update.GitHubIssueTitle, update.GitHubIssueBody, update.FollowUpNote, shippedAt)
 	return scanFeedback(row.Scan)
+}
+
+func (s *Store) DeleteFeedback(ctx context.Context, projectID, id string) error {
+	if referenced, err := s.campaignItemReferences(ctx, "feedback", id); err != nil {
+		return err
+	} else if referenced {
+		return dependentsErr("cannot delete: this feedback item is linked to a campaign")
+	}
+	cmd, err := s.pool.Exec(ctx, `DELETE FROM feedback_items WHERE id=$1 AND project_id=$2`, id, projectID)
+	if err != nil {
+		return err
+	}
+	if cmd.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
 }
 
 func (s *Store) FeedbackExistsForPainPoint(ctx context.Context, projectID, painPointID string) (bool, error) {

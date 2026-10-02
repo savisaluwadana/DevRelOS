@@ -1,5 +1,15 @@
 import { CampaignAttribution } from "@/components/campaign-attribution";
-import { ContactForm, OutreachActions, OutreachDraftForm, RelationshipForm, TouchpointForm } from "@/components/outreach-actions";
+import {
+  ContactEditor,
+  ContactForm,
+  OutreachActions,
+  OutreachDraftForm,
+  OutreachEditor,
+  RelationshipEditor,
+  RelationshipForm,
+  TouchpointEditor,
+  TouchpointForm
+} from "@/components/outreach-actions";
 import { formatDateTime } from "@/lib/api";
 import { getOutreachData } from "@/lib/outreach-api";
 import { renderTimestamp } from "@/lib/clock";
@@ -48,12 +58,34 @@ export default async function OutreachPage({ searchParams }: OutreachPageProps) 
         <div className="outreach-form-body"><OutreachDraftForm communities={data.communities} contacts={data.contacts} talks={data.talks} defaultCommunityId={params.communityId ?? ""} defaultTalkId={params.talkId ?? ""} defaultRationale={defaultRationale} /></div>
       </section>
 
+      <section className="panel outreach-contacts-panel">
+        <div className="panel-head"><div><span className="eyebrow">People</span><h2>Contacts</h2></div></div>
+        <div className="table-wrap"><table><thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Status</th><th></th></tr></thead><tbody>
+          {data.contacts.length === 0 ? <tr><td className="empty-cell" colSpan={5}>No contacts yet.</td></tr> : data.contacts.map((item) => (
+            <tr key={item.id}>
+              <td><strong>{item.name}</strong></td>
+              <td>{item.role || "—"}</td>
+              <td>{item.email || "—"}</td>
+              <td>{item.doNotContact ? <span className="pill neutral">Do not contact</span> : <span className="pill open">Contactable</span>}</td>
+              <td><ContactEditor contact={item} /></td>
+            </tr>
+          ))}
+        </tbody></table></div>
+      </section>
+
       <section className="relationship-grid">
         <article className="panel span-two">
           <div className="panel-head"><div><span className="eyebrow">Relationship Pipeline</span><h2>Warmth and next follow-up</h2></div></div>
-          <div className="table-wrap"><table><thead><tr><th>Community / contact</th><th>Stage</th><th>Strength</th><th>Last touch</th><th>Next follow-up</th></tr></thead><tbody>
-            {data.relationships.length === 0 ? <tr><td className="empty-cell" colSpan={5}>No relationships tracked yet.</td></tr> : data.relationships.map((item) => (
-              <tr key={item.id}><td><strong>{item.communityName || item.contactName || "Relationship"}</strong>{item.communityName && item.contactName && <span className="subline">{item.contactName}</span>}</td><td><span className="pill neutral">{item.stage}</span></td><td><span className="score">{item.strength}</span></td><td>{formatDateTime(item.lastTouchAt)}</td><td className={item.nextFollowUpAt && new Date(item.nextFollowUpAt).getTime() <= now ? "due-cell" : ""}>{formatDateTime(item.nextFollowUpAt)}</td></tr>
+          <div className="table-wrap"><table><thead><tr><th>Community / contact</th><th>Stage</th><th>Strength</th><th>Last touch</th><th>Next follow-up</th><th></th></tr></thead><tbody>
+            {data.relationships.length === 0 ? <tr><td className="empty-cell" colSpan={6}>No relationships tracked yet.</td></tr> : data.relationships.map((item) => (
+              <tr key={item.id}>
+                <td><strong>{item.communityName || item.contactName || "Relationship"}</strong>{item.communityName && item.contactName && <span className="subline">{item.contactName}</span>}</td>
+                <td><span className="pill neutral">{item.stage}</span></td>
+                <td><span className="score">{item.strength}</span></td>
+                <td>{formatDateTime(item.lastTouchAt)}</td>
+                <td className={item.nextFollowUpAt && new Date(item.nextFollowUpAt).getTime() <= now ? "due-cell" : ""}>{formatDateTime(item.nextFollowUpAt)}</td>
+                <td><RelationshipEditor relationship={item} /></td>
+              </tr>
             ))}
           </tbody></table></div>
         </article>
@@ -62,7 +94,12 @@ export default async function OutreachPage({ searchParams }: OutreachPageProps) 
           <div className="panel-head"><div><span className="eyebrow">Recent Activity</span><h2>Touchpoints</h2></div></div>
           <div className="touchpoint-list">
             {data.touchpoints.length === 0 ? <p className="empty-copy">No touchpoints yet.</p> : data.touchpoints.slice(0, 12).map((item) => (
-              <div className="touchpoint-item" key={item.id}><div><span className="provider-chip">{item.channel}</span><span className="direction-label">{item.direction}</span></div><strong>{item.summary}</strong><span>{formatDateTime(item.occurredAt)}</span></div>
+              <div className="touchpoint-item" key={item.id}>
+                <div><span className="provider-chip">{item.channel}</span><span className="direction-label">{item.direction}</span></div>
+                <strong>{item.summary}</strong>
+                <span>{formatDateTime(item.occurredAt)}</span>
+                <TouchpointEditor touchpoint={item} />
+              </div>
             ))}
           </div>
         </article>
@@ -80,6 +117,7 @@ export default async function OutreachPage({ searchParams }: OutreachPageProps) 
               <div className="outreach-actions-stack">
                 <CampaignAttribution entityType="outreach" entityId={item.id} channel={item.channel} />
                 <OutreachActions item={item} />
+                <OutreachEditor item={item} />
               </div>
             </article>
           ))}

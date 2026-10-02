@@ -90,7 +90,8 @@ func processNextMedia(ctx context.Context, store *storage.Store) (bool, error) {
 		return finishMediaFailure(ctx, store, job, fmt.Errorf("clip duration must be between 0 and 900 seconds"))
 	}
 
-	_ = store.UpdateMediaClipStatus(ctx, job.ProjectID, clip.ID, "rendering")
+	rendering := "rendering"
+	_, _ = store.UpdateMediaClip(ctx, job.ProjectID, clip.ID, mediadomain.ClipUpdate{Status: &rendering})
 	renderCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()
 	ffmpeg := workerEnvOr("DEVRELOS_FFMPEG_BIN", "ffmpeg")

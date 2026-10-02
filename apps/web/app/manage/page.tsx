@@ -1,5 +1,6 @@
 import OperatorForms from "@/components/operator-forms";
 import SubmissionStatus from "@/components/submission-status";
+import { CFPRowActions, CommunityRowActions, EventRowActions, TalkRowActions } from "@/components/manage-actions";
 import { formatDate, getOperatorData, locationLabel } from "@/lib/api";
 import Link from "next/link";
 
@@ -33,7 +34,7 @@ export default async function ManagePage() {
             {data.events.length === 0 ? <p className="empty-copy">No events yet.</p> : data.events.map((event) => (
               <div className="record-row" key={event.id}>
                 <div><strong>{event.name}</strong><span>{locationLabel(event.city, event.country)} · {formatDate(event.startsAt)}</span></div>
-                <span className="pill neutral">{event.status}</span>
+                <EventRowActions event={event} />
               </div>
             ))}
           </div>
@@ -45,7 +46,7 @@ export default async function ManagePage() {
             {data.talks.length === 0 ? <p className="empty-copy">No talks yet.</p> : data.talks.map((talk) => (
               <div className="record-row" key={talk.id}>
                 <div><strong>{talk.title}</strong><span>{talk.level} · {talk.durationMinutes} min</span></div>
-                <span className="pill neutral">{talk.status}</span>
+                <TalkRowActions talk={talk} />
               </div>
             ))}
           </div>
@@ -57,7 +58,7 @@ export default async function ManagePage() {
             {data.communities.length === 0 ? <p className="empty-copy">No communities yet.</p> : data.communities.map((community) => (
               <div className="record-row" key={community.id}>
                 <div><strong>{community.name}</strong><span>{locationLabel(community.city, community.country)} · {community.platform}</span></div>
-                <span className="score">{community.speakingFitScore ?? "—"}</span>
+                <CommunityRowActions community={community} />
               </div>
             ))}
           </div>
@@ -83,16 +84,16 @@ export default async function ManagePage() {
         <div className="panel-head"><div><span className="eyebrow">CFP Pipeline</span><h2>Submission windows</h2></div></div>
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Event</th><th>Window</th><th>Deadline</th><th>Tracks</th><th>Fit</th><th>Status</th></tr></thead>
+            <thead><tr><th>Event</th><th>Window</th><th>Deadline</th><th>Tracks</th><th>Fit</th><th>Status</th><th></th></tr></thead>
             <tbody>
-              {data.cfps.length === 0 ? <tr><td className="empty-cell" colSpan={6}>No CFPs yet.</td></tr> : data.cfps.map((cfp) => (
+              {data.cfps.length === 0 ? <tr><td className="empty-cell" colSpan={7}>No CFPs yet.</td></tr> : data.cfps.map((cfp) => (
                 <tr key={cfp.id}>
                   <td><strong>{cfp.eventName || "Event"}</strong></td>
                   <td>{cfp.name}</td>
                   <td>{formatDate(cfp.closesAt)}</td>
                   <td><div className="tag-row">{cfp.tracks.slice(0, 3).map((track) => <span className="tag" key={track}>{track}</span>)}</div></td>
                   <td><span className="score">{cfp.fitScore ?? "—"}</span></td>
-                  <td><span className="pill open">{cfp.status}</span></td>
+                  <td colSpan={2}><CFPRowActions cfp={cfp} /></td>
                 </tr>
               ))}
             </tbody>

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/savisaluwadana/DevRelOS/internal/domain/events"
 )
@@ -174,6 +175,55 @@ func (s *Store) CreateTalk(ctx context.Context, t events.Talk) (events.Talk, err
 	return t, err
 }
 
+func (s *Store) UpdateTalk(ctx context.Context, projectID, id string, update events.TalkUpdate) (events.Talk, error) {
+	var t events.Talk
+	err := s.pool.QueryRow(ctx, `
+		UPDATE talks
+		SET title=COALESCE($3,title),
+		    abstract=COALESCE($4,abstract),
+		    description=COALESCE($5,description),
+		    level=COALESCE($6,level),
+		    duration_minutes=COALESCE($7,duration_minutes),
+		    topics=COALESCE($8::text[],topics),
+		    demo_url=COALESCE(NULLIF($9,''),demo_url),
+		    slides_url=COALESCE(NULLIF($10,''),slides_url),
+		    recording_url=COALESCE(NULLIF($11,''),recording_url),
+		    status=COALESCE($12,status),
+		    updated_at=now()
+		WHERE id=$1 AND project_id=$2
+		RETURNING id::text, project_id::text, title, abstract, description, level, duration_minutes,
+		          topics, COALESCE(demo_url,''), COALESCE(slides_url,''), COALESCE(recording_url,''),
+		          status, created_at, updated_at`,
+		id, projectID, update.Title, update.Abstract, update.Description, update.Level,
+		update.DurationMinutes, update.Topics, update.DemoURL, update.SlidesURL, update.RecordingURL, update.Status,
+	).Scan(&t.ID, &t.ProjectID, &t.Title, &t.Abstract, &t.Description, &t.Level, &t.DurationMinutes,
+		&t.Topics, &t.DemoURL, &t.SlidesURL, &t.RecordingURL, &t.Status, &t.CreatedAt, &t.UpdatedAt)
+	return t, err
+}
+
+func (s *Store) DeleteTalk(ctx context.Context, projectID, id string) error {
+	var subCount int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM submissions WHERE talk_id=$1`, id).Scan(&subCount); err != nil {
+		return err
+	}
+	if subCount > 0 {
+		return dependentsErr("cannot delete: this talk still has submissions attached")
+	}
+	if referenced, err := s.campaignItemReferences(ctx, "talk", id); err != nil {
+		return err
+	} else if referenced {
+		return dependentsErr("cannot delete: this talk is linked to a campaign")
+	}
+	cmd, err := s.pool.Exec(ctx, `DELETE FROM talks WHERE id=$1 AND project_id=$2`, id, projectID)
+	if err != nil {
+		return err
+	}
+	if cmd.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
 func (s *Store) ListSubmissions(ctx context.Context, projectID string, page Page) ([]events.Submission, error) {
 	limit, limitArgs := page.clause(2)
 	args := append([]any{projectID}, limitArgs...)
@@ -248,6 +298,61 @@ func (s *Store) CreateCommunity(ctx context.Context, c events.Community) (events
 		c.Topics, c.MemberCount, c.ActivityScore, c.SpeakingFitScore, c.LastEventAt, c.NextEventAt,
 		c.Status).Scan(&c.ID, &c.CreatedAt, &c.UpdatedAt)
 	return c, err
+}
+
+func (s *Store) UpdateCommunity(ctx context.Context, projectID, id string, update events.CommunityUpdate) (events.Community, error) {
+	var c events.Community
+	err := s.pool.QueryRow(ctx, `
+		UPDATE communities
+		SET name=COALESCE($3,name),
+		    platform=COALESCE($4,platform),
+		    external_id=COALESCE(NULLIF($5,''),external_id),
+		    website_url=COALESCE(NULLIF($6,''),website_url),
+		    city=COALESCE(NULLIF($7,''),city),
+		    country=COALESCE(NULLIF($8,''),country),
+		    timezone=COALESCE(NULLIF($9,''),timezone),
+		    topics=COALESCE($10::text[],topics),
+		    member_count=COALESCE($11,member_count),
+		    activity_score=COALESCE($12,activity_score),
+		    speaking_fit_score=COALESCE($13,speaking_fit_score),
+		    last_event_at=COALESCE($14,last_event_at),
+		    next_event_at=COALESCE($15,next_event_at),
+		    status=COALESCE($16,status),
+		    updated_at=now()
+		WHERE id=$1 AND project_id=$2
+		RETURNING id::text, project_id::text, name, platform, COALESCE(external_id,''), COALESCE(website_url,''),
+		          COALESCE(city,''), COALESCE(country,''), COALESCE(timezone,''), topics, member_count,
+		          activity_score, speaking_fit_score, last_event_at, next_event_at, status, created_at, updated_at`,
+		id, projectID, update.Name, update.Platform, update.ExternalID, update.WebsiteURL, update.City,
+		update.Country, update.Timezone, update.Topics, update.MemberCount, update.ActivityScore,
+		update.SpeakingFitScore, update.LastEventAt, update.NextEventAt, update.Status,
+	).Scan(&c.ID, &c.ProjectID, &c.Name, &c.Platform, &c.ExternalID, &c.WebsiteURL, &c.City, &c.Country,
+		&c.Timezone, &c.Topics, &c.MemberCount, &c.ActivityScore, &c.SpeakingFitScore, &c.LastEventAt,
+		&c.NextEventAt, &c.Status, &c.CreatedAt, &c.UpdatedAt)
+	return c, err
+}
+
+func (s *Store) DeleteCommunity(ctx context.Context, projectID, id string) error {
+	var relCount int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM relationships WHERE community_id=$1`, id).Scan(&relCount); err != nil {
+		return err
+	}
+	if relCount > 0 {
+		return dependentsErr("cannot delete: this community still has relationships attached")
+	}
+	if referenced, err := s.campaignItemReferences(ctx, "community", id); err != nil {
+		return err
+	} else if referenced {
+		return dependentsErr("cannot delete: this community is linked to a campaign")
+	}
+	cmd, err := s.pool.Exec(ctx, `DELETE FROM communities WHERE id=$1 AND project_id=$2`, id, projectID)
+	if err != nil {
+		return err
+	}
+	if cmd.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
 }
 
 // Dashboard filters in Go and keeps the first five matches per section, so each

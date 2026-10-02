@@ -51,17 +51,28 @@ func main() {
 	mux.HandleFunc("GET /api/v1/dashboard", a.dashboard)
 	mux.HandleFunc("GET /api/v1/events", a.listEvents)
 	mux.HandleFunc("POST /api/v1/events", a.createEvent)
+	mux.HandleFunc("PATCH /api/v1/events/{id}", a.updateEvent)
+	mux.HandleFunc("DELETE /api/v1/events/{id}", a.deleteEvent)
 	mux.HandleFunc("GET /api/v1/cfps", a.listCFPs)
 	mux.HandleFunc("POST /api/v1/cfps", a.createCFP)
+	mux.HandleFunc("PATCH /api/v1/cfps/{id}", a.updateCFP)
+	mux.HandleFunc("DELETE /api/v1/cfps/{id}", a.deleteCFP)
 	mux.HandleFunc("GET /api/v1/talks", a.listTalks)
 	mux.HandleFunc("POST /api/v1/talks", a.createTalk)
+	mux.HandleFunc("PATCH /api/v1/talks/{id}", a.updateTalk)
+	mux.HandleFunc("DELETE /api/v1/talks/{id}", a.deleteTalk)
 	mux.HandleFunc("GET /api/v1/submissions", a.listSubmissions)
 	mux.HandleFunc("POST /api/v1/submissions", a.createSubmission)
-	mux.HandleFunc("PATCH /api/v1/submissions/{id}/status", a.updateSubmissionStatus)
+	mux.HandleFunc("PATCH /api/v1/submissions/{id}", a.updateSubmission)
+	mux.HandleFunc("DELETE /api/v1/submissions/{id}", a.deleteSubmission)
 	mux.HandleFunc("GET /api/v1/communities", a.listCommunities)
 	mux.HandleFunc("POST /api/v1/communities", a.createCommunity)
+	mux.HandleFunc("PATCH /api/v1/communities/{id}", a.updateCommunity)
+	mux.HandleFunc("DELETE /api/v1/communities/{id}", a.deleteCommunity)
 	mux.HandleFunc("GET /api/v1/connectors", a.listConnectors)
 	mux.HandleFunc("POST /api/v1/connectors", a.createConnector)
+	mux.HandleFunc("PATCH /api/v1/connectors/{id}", a.updateConnector)
+	mux.HandleFunc("DELETE /api/v1/connectors/{id}", a.deleteConnector)
 	mux.HandleFunc("PATCH /api/v1/connectors/{id}/schedule", a.updateConnectorSchedule)
 	mux.HandleFunc("GET /api/v1/connectors/{id}/runs", a.listConnectorRuns)
 	mux.HandleFunc("POST /api/v1/connectors/{id}/runs", a.queueConnectorRun)
@@ -348,16 +359,137 @@ func (a *api) createSubmission(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, created)
 }
 
-func (a *api) updateSubmissionStatus(w http.ResponseWriter, r *http.Request) {
-	var input struct {
-		Status string `json:"status"`
-	}
+func (a *api) updateEvent(w http.ResponseWriter, r *http.Request) {
+	var input events.EventUpdate
 	if err := decodeJSON(r, &input); err != nil {
 		writeBadRequest(w, err.Error())
 		return
 	}
-	allowed := map[string]bool{"draft": true, "needs_work": true, "ready": true, "submitted": true, "accepted": true, "rejected": true, "withdrawn": true}
-	if !allowed[input.Status] {
+	if input.Status != nil && !validEventStatus(*input.Status) {
+		writeBadRequest(w, "invalid event status")
+		return
+	}
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	updated, err := a.store.UpdateEvent(r.Context(), projectID, r.PathValue("id"), input)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *api) deleteEvent(w http.ResponseWriter, r *http.Request) {
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.DeleteEvent(r.Context(), projectID, r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func validEventStatus(status string) bool {
+	return map[string]bool{"discovered": true, "tracking": true, "attending": true, "completed": true, "archived": true}[status]
+}
+
+func (a *api) updateCFP(w http.ResponseWriter, r *http.Request) {
+	var input events.CFPUpdate
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if input.Status != nil && !validCFPStatus(*input.Status) {
+		writeBadRequest(w, "invalid CFP status")
+		return
+	}
+	if input.FitScore != nil && (*input.FitScore < 0 || *input.FitScore > 100) {
+		writeBadRequest(w, "fitScore must be between 0 and 100")
+		return
+	}
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	updated, err := a.store.UpdateScopedCFP(r.Context(), projectID, r.PathValue("id"), input)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *api) deleteCFP(w http.ResponseWriter, r *http.Request) {
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.DeleteScopedCFP(r.Context(), projectID, r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func validCFPStatus(status string) bool {
+	return map[string]bool{"upcoming": true, "open": true, "closed": true, "cancelled": true}[status]
+}
+
+func (a *api) updateTalk(w http.ResponseWriter, r *http.Request) {
+	var input events.TalkUpdate
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if input.Status != nil && !validTalkStatus(*input.Status) {
+		writeBadRequest(w, "invalid talk status")
+		return
+	}
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	updated, err := a.store.UpdateTalk(r.Context(), projectID, r.PathValue("id"), input)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *api) deleteTalk(w http.ResponseWriter, r *http.Request) {
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.DeleteTalk(r.Context(), projectID, r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func validTalkStatus(status string) bool {
+	return map[string]bool{"draft": true, "ready": true, "retired": true}[status]
+}
+
+func (a *api) updateSubmission(w http.ResponseWriter, r *http.Request) {
+	var input events.SubmissionUpdate
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if input.Status != nil && !validSubmissionStatus(*input.Status) {
 		writeBadRequest(w, "invalid submission status")
 		return
 	}
@@ -366,11 +498,69 @@ func (a *api) updateSubmissionStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	if err := a.store.UpdateScopedSubmissionStatus(r.Context(), projectID, r.PathValue("id"), input.Status); err != nil {
+	updated, err := a.store.UpdateScopedSubmission(r.Context(), projectID, r.PathValue("id"), input)
+	if err != nil {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": input.Status})
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *api) deleteSubmission(w http.ResponseWriter, r *http.Request) {
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.DeleteScopedSubmission(r.Context(), projectID, r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func validSubmissionStatus(status string) bool {
+	return map[string]bool{"draft": true, "needs_work": true, "ready": true, "submitted": true, "accepted": true, "rejected": true, "withdrawn": true}[status]
+}
+
+func (a *api) updateCommunity(w http.ResponseWriter, r *http.Request) {
+	var input events.CommunityUpdate
+	if err := decodeJSON(r, &input); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if input.Status != nil && !validCommunityStatus(*input.Status) {
+		writeBadRequest(w, "invalid community status")
+		return
+	}
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	updated, err := a.store.UpdateCommunity(r.Context(), projectID, r.PathValue("id"), input)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *api) deleteCommunity(w http.ResponseWriter, r *http.Request) {
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.DeleteCommunity(r.Context(), projectID, r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func validCommunityStatus(status string) bool {
+	return map[string]bool{"discovered": true, "researching": true, "warm": true, "active": true, "paused": true, "do_not_contact": true}[status]
 }
 
 func (a *api) listCommunities(w http.ResponseWriter, r *http.Request) {
@@ -430,6 +620,12 @@ func writeBadRequest(w http.ResponseWriter, message string) {
 func writeError(w http.ResponseWriter, err error) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+		return
+	}
+
+	var depErr *storage.DependentsError
+	if errors.As(err, &depErr) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": depErr.Message})
 		return
 	}
 

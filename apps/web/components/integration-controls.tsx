@@ -3,6 +3,7 @@
 import type { Connector } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { DeleteButton } from "@/components/delete-button";
 
 const apiURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
@@ -123,9 +124,9 @@ export function ConnectorForm() {
   }
 
   const placeholder = provider === "bluesky"
-    ? "Platform engineering pain points"
+    ? "Developer pain points"
     : provider === "ocg"
-      ? "US platform engineering communities"
+      ? "Regional developer communities"
       : provider === "github.issues"
         ? "OpenChoreo GitHub issues"
         : provider === "github.releases"
@@ -133,9 +134,9 @@ export function ConnectorForm() {
           : provider === "github.discussions"
             ? "OpenChoreo community discussions"
             : provider === "hackernews"
-              ? "Hacker News platform engineering"
+              ? "Hacker News developer discussion"
               : provider === "rss"
-                ? "Kubernetes project blog feed"
+                ? "Project blog feed"
                 : "Developer events discovery";
 
   return (
@@ -163,9 +164,9 @@ export function ConnectorForm() {
 
       {provider === "bluesky" && (
         <>
-          <label>Search query<input name="query" placeholder='"platform engineering" kubernetes' required /></label>
+          <label>Search query<input name="query" placeholder='"exact phrase" keyword' required /></label>
           <div className="form-grid-two">
-            <label>Topics<input name="topics" placeholder="platform-engineering, kubernetes" /></label>
+            <label>Topics<input name="topics" placeholder="comma-separated topics" /></label>
             <label>Maximum posts per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="50" /></label>
           </div>
           <p className="policy-note">Bluesky search uses the public AppView. DevRelOS stores normalized evidence and provenance by default rather than treating public posts as a relicensable content corpus.</p>
@@ -175,12 +176,12 @@ export function ConnectorForm() {
       {provider === "ocg" && (
         <>
           <div className="form-grid-three">
-            <label>Search query<input name="query" placeholder="platform engineering" /></label>
+            <label>Search query<input name="query" placeholder="Search keywords" /></label>
             <label>Region<input name="region" placeholder="Optional OCG region" /></label>
             <label>Group category<input name="groupCategory" placeholder="Optional category" /></label>
           </div>
           <div className="form-grid-two">
-            <label>Desired topics<input name="topics" placeholder="platform-engineering, kubernetes, devex" /></label>
+            <label>Desired topics<input name="topics" placeholder="comma-separated topics" /></label>
             <label>Maximum groups per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="50" /></label>
           </div>
           <p className="policy-note">This connector uses OCG&apos;s public JSON group-search endpoint and defaults to the CNCF community. Discovered groups are upserted into the Community pipeline with source provenance.</p>
@@ -201,11 +202,11 @@ export function ConnectorForm() {
             <label>Labels<input name="labels" placeholder="bug, documentation" /></label>
           </div>
           <div className="form-grid-two">
-            <label>Local keyword filter<input name="query" placeholder="Optional: kubernetes deployment" /></label>
+            <label>Local keyword filter<input name="query" placeholder="Optional keyword filter" /></label>
             <label>GitHub token env var<input name="tokenEnv" placeholder="GITHUB_TOKEN (optional)" /></label>
           </div>
           <div className="form-grid-two">
-            <label>Topics<input name="topics" placeholder="kubernetes, devex, documentation" /></label>
+            <label>Topics<input name="topics" placeholder="comma-separated topics" /></label>
             <label>Maximum issues per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="50" /></label>
           </div>
           <label className="checkbox-label"><input name="includePullRequests" type="checkbox" /> Include pull requests returned by the Issues endpoint</label>
@@ -220,8 +221,8 @@ export function ConnectorForm() {
             <label>GitHub token env var<input name="tokenEnv" placeholder="GITHUB_TOKEN (optional)" /></label>
           </div>
           <div className="form-grid-three">
-            <label>Optional keyword filter<input name="query" placeholder="kubernetes" /></label>
-            <label>Topics<input name="topics" placeholder="releases, kubernetes, devtools" /></label>
+            <label>Optional keyword filter<input name="query" placeholder="Keyword" /></label>
+            <label>Topics<input name="topics" placeholder="comma-separated topics" /></label>
             <label>Maximum releases per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="30" /></label>
           </div>
           <div className="form-grid-two">
@@ -239,8 +240,8 @@ export function ConnectorForm() {
             <label>GitHub token env var<input name="tokenEnv" placeholder="GITHUB_TOKEN" required /></label>
           </div>
           <div className="form-grid-three">
-            <label>Optional keyword filter<input name="query" placeholder="platform engineering" /></label>
-            <label>Topics<input name="topics" placeholder="community, devex, kubernetes" /></label>
+            <label>Optional keyword filter<input name="query" placeholder="Search keywords" /></label>
+            <label>Topics<input name="topics" placeholder="comma-separated topics" /></label>
             <label>Maximum discussions per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="30" /></label>
           </div>
           <p className="policy-note">GitHub Discussions uses the authenticated GraphQL API. Store only the environment-variable name here; the worker reads the actual token from its runtime environment.</p>
@@ -250,7 +251,7 @@ export function ConnectorForm() {
       {provider === "hackernews" && (
         <>
           <div className="form-grid-three">
-            <label>Keyword query<input name="query" placeholder="platform engineering" required /></label>
+            <label>Keyword query<input name="query" placeholder="Search keywords" required /></label>
             <label>Feed
               <select name="feed" defaultValue="new">
                 <option value="new">New</option>
@@ -263,7 +264,7 @@ export function ConnectorForm() {
             <label>Stories scanned<input name="scanLimit" type="number" min="1" max="100" defaultValue="60" /></label>
           </div>
           <div className="form-grid-two">
-            <label>Topics<input name="topics" placeholder="platform-engineering, kubernetes, devtools" /></label>
+            <label>Topics<input name="topics" placeholder="comma-separated topics" /></label>
             <label>Maximum matches per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="30" /></label>
           </div>
           <p className="policy-note">Hacker News ingestion uses the official Firebase API and performs bounded keyword filtering locally. DevRelOS stores normalized evidence and the canonical HN discussion link.</p>
@@ -274,8 +275,8 @@ export function ConnectorForm() {
         <>
           <label>Feed URL<input name="feedUrl" type="url" placeholder="https://example.com/feed.xml" required /></label>
           <div className="form-grid-three">
-            <label>Optional keyword filter<input name="query" placeholder="platform engineering" /></label>
-            <label>Topics<input name="topics" placeholder="kubernetes, releases, devtools" /></label>
+            <label>Optional keyword filter<input name="query" placeholder="Optional keyword filter" /></label>
+            <label>Topics<input name="topics" placeholder="comma-separated topics" /></label>
             <label>Maximum entries per run<input name="pageLimit" type="number" min="1" max="100" defaultValue="50" /></label>
           </div>
           <p className="policy-note">RSS/Atom feeds must use HTTPS. The worker blocks private, loopback and link-local destinations after DNS resolution, revalidates redirects and limits feed responses to 2 MiB to reduce SSRF and resource-exhaustion risk.</p>
@@ -299,6 +300,79 @@ export function ConnectorForm() {
 
       <div className="form-action-row">
         <button className="button primary" disabled={saving}>{saving ? "Saving…" : "Add connector"}</button>
+        {message && <span className="form-message">{message}</span>}
+      </div>
+    </form>
+  );
+}
+
+export function ConnectorEditor({ connector }: { connector: Connector }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const configRaw = String(form.get("config") ?? "").trim();
+    setBusy(true);
+    setMessage("");
+    try {
+      let config: Record<string, unknown> | undefined;
+      if (configRaw) {
+        try {
+          config = JSON.parse(configRaw);
+        } catch {
+          throw new Error("Config must be valid JSON");
+        }
+      }
+      const response = await fetch(`${apiURL}/api/v1/connectors/${connector.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: String(form.get("name") ?? "").trim(),
+          enabled: form.get("enabled") === "on",
+          ...(config !== undefined ? { config } : {})
+        })
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({ error: "Unable to save connector" }));
+        throw new Error(payload.error ?? "Unable to save connector");
+      }
+      setEditing(false);
+      setMessage("Saved.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to save connector");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div className="connector-edit-toggle">
+        <button className="button ghost small-button" type="button" onClick={() => setEditing(true)}>Edit</button>
+        <DeleteButton
+          url={`${apiURL}/api/v1/connectors/${connector.id}`}
+          confirmMessage={`Delete connector "${connector.name}"? Its run history will be removed too.`}
+        />
+        {message && <span className="action-note">{message}</span>}
+      </div>
+    );
+  }
+
+  return (
+    <form className="connector-editor" onSubmit={save}>
+      <div className="form-grid-two">
+        <label>Name<input name="name" defaultValue={connector.name} required /></label>
+        <label className="checkbox-label"><input name="enabled" type="checkbox" defaultChecked={connector.enabled} /> Enabled</label>
+      </div>
+      <label>Config (JSON)<textarea name="config" rows={6} defaultValue={JSON.stringify(connector.config, null, 2)} /></label>
+      <div className="form-action-row">
+        <button className="button primary small-button" disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+        <button className="button ghost small-button" type="button" onClick={() => setEditing(false)}>Cancel</button>
         {message && <span className="form-message">{message}</span>}
       </div>
     </form>

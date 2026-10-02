@@ -24,3 +24,14 @@ type PainPointConversion struct {
 	Owner string     `json:"owner"`
 	DueAt *time.Time `json:"dueAt,omitempty"`
 }
+
+// WorkItemUpdate is a partial edit of a WorkItem. All fields are optional
+// pointers so a client can update any subset without clobbering the rest.
+type WorkItemUpdate struct {
+	Title       *string    `json:"title,omitempty"`
+	Description *string    `json:"description,omitempty"`
+	Priority    *int       `json:"priority,omitempty"`
+	Status      *string    `json:"status,omitempty"`
+	Owner       *string    `json:"owner,omitempty"`
+	DueAt       *time.Time `json:"dueAt,omitempty"`
+}

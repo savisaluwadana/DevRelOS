@@ -12,7 +12,8 @@ import (
 func (a *api) registerWorkItemRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/work-items", a.listWorkItems)
 	mux.HandleFunc("POST /api/v1/work-items", a.createWorkItem)
-	mux.HandleFunc("PATCH /api/v1/work-items/{id}/status", a.updateWorkItemStatus)
+	mux.HandleFunc("PATCH /api/v1/work-items/{id}", a.updateWorkItem)
+	mux.HandleFunc("DELETE /api/v1/work-items/{id}", a.deleteWorkItem)
 	mux.HandleFunc("POST /api/v1/pain-points/{id}/work-items", a.createWorkItemFromPainPoint)
 	a.registerContentRoutes(mux)
 }
@@ -79,16 +80,18 @@ func (a *api) createWorkItem(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, created)
 }
 
-func (a *api) updateWorkItemStatus(w http.ResponseWriter, r *http.Request) {
-	var input struct {
-		Status string `json:"status"`
-	}
+func (a *api) updateWorkItem(w http.ResponseWriter, r *http.Request) {
+	var input workdomain.WorkItemUpdate
 	if err := decodeJSON(r, &input); err != nil {
 		writeBadRequest(w, err.Error())
 		return
 	}
-	if !validWorkStatus(input.Status) {
+	if input.Status != nil && !validWorkStatus(*input.Status) {
 		writeBadRequest(w, "invalid work item status")
+		return
+	}
+	if input.Priority != nil && (*input.Priority < 0 || *input.Priority > 100) {
+		writeBadRequest(w, "priority must be between 0 and 100")
 		return
 	}
 	projectID, err := a.projectID(r)
@@ -96,11 +99,25 @@ func (a *api) updateWorkItemStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	if err := a.store.UpdateWorkItemStatus(r.Context(), projectID, r.PathValue("id"), input.Status); err != nil {
+	updated, err := a.store.UpdateWorkItem(r.Context(), projectID, r.PathValue("id"), input)
+	if err != nil {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": input.Status})
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *api) deleteWorkItem(w http.ResponseWriter, r *http.Request) {
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.DeleteWorkItem(r.Context(), projectID, r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *api) createWorkItemFromPainPoint(w http.ResponseWriter, r *http.Request) {

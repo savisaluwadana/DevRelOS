@@ -13,6 +13,7 @@ func (a *api) registerFeedbackRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/feedback", a.listFeedback)
 	mux.HandleFunc("POST /api/v1/feedback", a.createFeedback)
 	mux.HandleFunc("PATCH /api/v1/feedback/{id}", a.updateFeedback)
+	mux.HandleFunc("DELETE /api/v1/feedback/{id}", a.deleteFeedback)
 	mux.HandleFunc("GET /api/v1/feedback/{id}/github/prefill", a.feedbackGitHubPrefill)
 	mux.HandleFunc("POST /api/v1/feedback/{id}/github/sync", a.syncFeedbackGitHubIssue)
 	mux.HandleFunc("POST /api/v1/pain-points/{id}/feedback", a.createFeedbackFromPainPoint)
@@ -124,6 +125,19 @@ func (a *api) updateFeedback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *api) deleteFeedback(w http.ResponseWriter, r *http.Request) {
+	projectID, err := a.projectID(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.store.DeleteFeedback(r.Context(), projectID, r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *api) createFeedbackFromPainPoint(w http.ResponseWriter, r *http.Request) {

@@ -74,8 +74,47 @@ func (s *Store) GetCampaign(ctx context.Context, projectID, id string) (campaign
 	return item, err
 }
 
-func (s *Store) UpdateCampaignStatus(ctx context.Context, projectID, id, status string) error {
-	cmd, err := s.pool.Exec(ctx, `UPDATE campaigns SET status=$3, updated_at=now() WHERE id=$1 AND project_id=$2`, id, projectID, status)
+func (s *Store) UpdateCampaign(ctx context.Context, projectID, id string, update campaigndomain.CampaignUpdate) (campaigndomain.Campaign, error) {
+	var target []byte
+	if update.Target != nil {
+		marshalled, err := json.Marshal(*update.Target)
+		if err != nil {
+			return campaigndomain.Campaign{}, err
+		}
+		target = marshalled
+	}
+	var item campaigndomain.Campaign
+	var targetOut []byte
+	err := s.pool.QueryRow(ctx, `
+		UPDATE campaigns
+		SET name=COALESCE($3,name),
+		    objective=COALESCE($4,objective),
+		    status=COALESCE($5,status),
+		    starts_at=COALESCE($6,starts_at),
+		    ends_at=COALESCE($7,ends_at),
+		    budget_usd=COALESCE($8,budget_usd),
+		    target=COALESCE($9::jsonb,target),
+		    updated_at=now()
+		WHERE id=$1 AND project_id=$2
+		RETURNING id::text, project_id::text, name, objective, status, starts_at, ends_at,
+		          budget_usd::float8, target, created_at, updated_at`,
+		id, projectID, update.Name, update.Objective, update.Status, update.StartsAt, update.EndsAt,
+		update.BudgetUSD, target,
+	).Scan(&item.ID, &item.ProjectID, &item.Name, &item.Objective, &item.Status, &item.StartsAt, &item.EndsAt,
+		&item.BudgetUSD, &targetOut, &item.CreatedAt, &item.UpdatedAt)
+	if err != nil {
+		return item, err
+	}
+	item.Target = map[string]any{}
+	_ = json.Unmarshal(targetOut, &item.Target)
+	return item, nil
+}
+
+func (s *Store) DeleteCampaign(ctx context.Context, projectID, id string) error {
+	// campaign_items and campaign_metrics are owned rows (ON DELETE CASCADE) -
+	// no dependency pre-check needed for them. Nothing else references a
+	// campaign, so this deletes freely once the row is confirmed to exist.
+	cmd, err := s.pool.Exec(ctx, `DELETE FROM campaigns WHERE id=$1 AND project_id=$2`, id, projectID)
 	if err != nil {
 		return err
 	}

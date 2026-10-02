@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { ContentAsset, ContentChannel, ContentStatus } from "@/lib/content-shared";
 import { contentChannelLabels } from "@/lib/content-shared";
 import type { WorkItem, WorkItemKind } from "@/lib/work-shared";
+import { DeleteButton } from "@/components/delete-button";
 
 const apiURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
@@ -93,7 +94,7 @@ export function ManualContentAssetForm() {
       <label>Objective<input name="objective" placeholder="What should the audience understand or do after consuming this?" /></label>
       <label>Brief<textarea name="brief" rows={5} placeholder="Problem, evidence, angle, structure and review notes…" /></label>
       <div className="form-grid-two">
-        <label>Topics<input name="topics" placeholder="kubernetes, platform-engineering" /></label>
+        <label>Topics<input name="topics" placeholder="comma-separated topics" /></label>
         <label>Source URL<input name="sourceUrl" type="url" placeholder="https://…" /></label>
       </div>
       <div className="form-action-row"><button className="button primary" disabled={busy}>{busy ? "Creating…" : "Create asset"}</button>{message && <span className="form-message">{message}</span>}</div>
@@ -106,6 +107,13 @@ export function ContentAssetEditor({ asset }: { asset: ContentAsset }) {
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   const [message, setMessage] = useState("");
+  const deleteButton = (
+    <DeleteButton
+      url={`${apiURL}/api/v1/content-assets/${asset.id}`}
+      confirmMessage={`Delete "${asset.title}"? This cannot be undone.`}
+      onDeleted={() => router.refresh()}
+    />
+  );
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -190,6 +198,7 @@ export function ContentAssetEditor({ asset }: { asset: ContentAsset }) {
       {asset.status === "approved" && (
         <form className="publish-inline" onSubmit={publish}><input name="publishedUrl" type="url" placeholder="Published URL" defaultValue={asset.publishedUrl} required /><button className="button primary small-button" disabled={busy}>Mark published</button></form>
       )}
+      {deleteButton}
       {message && <span className="action-note">{message}</span>}
     </div>
   );
